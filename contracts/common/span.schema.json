@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/common/span.schema.json",
+  "title": "Span",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["start_line", "start_col", "end_line", "end_col"],
+  "properties": {
+    "start_line": { "type": "integer", "minimum": 0 },
+    "start_col": { "type": "integer", "minimum": 0 },
+    "end_line": { "type": "integer", "minimum": 0 },
+    "end_col": { "type": "integer", "minimum": 0 }
+  }
+}
