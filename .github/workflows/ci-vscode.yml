@@ -1,0 +1,27 @@
+name: ci-vscode
+on:
+  push:
+    branches: [main]
+    paths: ['vscode-extension/**']
+  pull_request:
+    paths: ['vscode-extension/**']
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        working-directory: vscode-extension
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        working-directory: vscode-extension
+        run: pnpm typecheck
+      - name: Test
+        working-directory: vscode-extension
+        run: pnpm test
