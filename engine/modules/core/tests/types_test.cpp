@@ -35,3 +35,15 @@ TEST(CoreTypes, NodeKindRoundTrip) {
         EXPECT_EQ(node_kind_from_string(to_string(k)), k);
     }
 }
+
+TEST(CoreTypes, Levels) {
+    EXPECT_EQ(level_of(NodeKind::Class), 3);
+    EXPECT_EQ(level_of(NodeKind::External), 1);
+    EXPECT_EQ(level_of(NodeKind::Method), 4);
+}
+
+TEST(CoreTypes, HealthSeverity) {
+    EXPECT_EQ(severity(Health::Error), 4);
+    EXPECT_EQ(worst(Health::Ok, Health::Warning), Health::Warning);
+    EXPECT_EQ(worst(Health::Error, Health::Stalled), Health::Error);
+}

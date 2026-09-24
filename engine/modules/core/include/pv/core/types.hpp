@@ -51,5 +51,8 @@ std::string to_string(Health health);
 std::optional<NodeKind> node_kind_from_string(const std::string& text);
 std::optional<EdgeKind> edge_kind_from_string(const std::string& text);
 std::optional<Health> health_from_string(const std::string& text);
+int level_of(NodeKind kind);
+int severity(Health health);
+Health worst(Health a, Health b);
 
 }  // namespace pv::core
