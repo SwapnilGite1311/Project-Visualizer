@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/motion/trace-event.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v",
+    "seq",
+    "kind",
+    "file",
+    "line",
+    "func",
+    "depth",
+    "t_ns"
+  ],
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "kind": {
+      "enum": [
+        "start",
+        "call",
+        "line",
+        "return",
+        "exception",
+        "end"
+      ]
+    },
+    "file": {
+      "type": "string"
+    },
+    "line": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "func": {
+      "type": "string"
+    },
+    "depth": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "t_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "locals": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "maxProperties": 20
+    },
+    "value": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "argv": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "python": {
+      "type": "string"
+    },
+    "root": {
+      "type": "string"
+    },
+    "exit_code": {
+      "type": "integer"
+    },
+    "events": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  }
+}

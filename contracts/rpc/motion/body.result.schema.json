@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/motion/body.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "node_id",
+    "file_path",
+    "start_line",
+    "end_line",
+    "blocks"
+  ],
+  "properties": {
+    "node_id": {
+      "type": "string"
+    },
+    "file_path": {
+      "type": "string"
+    },
+    "start_line": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "end_line": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/block"
+      }
+    }
+  },
+  "$defs": {
+    "block": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "line",
+        "end_line",
+        "depth",
+        "parent",
+        "text",
+        "calls",
+        "writes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^b[0-9]+$"
+        },
+        "kind": {
+          "enum": [
+            "statement",
+            "if",
+            "elif",
+            "else",
+            "for",
+            "while",
+            "try",
+            "except",
+            "finally",
+            "with",
+            "return",
+            "raise",
+            "break",
+            "continue",
+            "pass",
+            "def",
+            "class",
+            "match",
+            "case"
+          ]
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "writes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

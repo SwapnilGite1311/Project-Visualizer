@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "seq": 5,
+  "kind": "line",
+  "file": "app/services.py",
+  "line": 11,
+  "func": "UserService.get_user",
+  "depth": 2,
+  "t_ns": 152000,
+  "locals": {
+    "user_id": "1"
+  }
+}

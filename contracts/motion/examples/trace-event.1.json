@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "seq": 0,
+  "kind": "start",
+  "file": "",
+  "line": 0,
+  "func": "",
+  "depth": 0,
+  "t_ns": 0,
+  "argv": [
+    "main.py"
+  ],
+  "cwd": "C:/code/demo",
+  "python": "3.12.4",
+  "root": "C:/code/demo"
+}

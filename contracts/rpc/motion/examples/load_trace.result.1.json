@@ -1,0 +1,21 @@
+{
+  "trace_id": "t1",
+  "steps_total": 12,
+  "truncated": false,
+  "exit_code": 0,
+  "argv": [
+    "main.py"
+  ],
+  "skipped_lines": 0,
+  "functions": [
+    {
+      "node_id": "function:main.py#main",
+      "calls": 1
+    },
+    {
+      "node_id": "method:app/services.py#UserService.get_user",
+      "calls": 1
+    }
+  ],
+  "last_exception": null
+}

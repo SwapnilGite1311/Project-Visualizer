@@ -1,0 +1,27 @@
+{
+  "total": 12,
+  "steps": [
+    {
+      "i": 0,
+      "kind": "call",
+      "node_id": "function:main.py#main",
+      "file": "main.py",
+      "line": 7,
+      "depth": 0,
+      "t_ns": 41000,
+      "locals": {},
+      "value": ""
+    },
+    {
+      "i": 1,
+      "kind": "line",
+      "node_id": "function:main.py#main",
+      "file": "main.py",
+      "line": 8,
+      "depth": 0,
+      "t_ns": 52000,
+      "locals": {},
+      "value": ""
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/motion/steps.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "total",
+    "steps"
+  ],
+  "properties": {
+    "total": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "i",
+        "kind",
+        "node_id",
+        "file",
+        "line",
+        "depth",
+        "t_ns",
+        "locals",
+        "value"
+      ],
+      "properties": {
+        "i": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "enum": [
+            "call",
+            "line",
+            "return",
+            "exception"
+          ]
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "t_ns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "locals": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

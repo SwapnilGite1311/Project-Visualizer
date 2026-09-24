@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/motion/load_trace.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "trace_id",
+    "steps_total",
+    "truncated",
+    "exit_code",
+    "argv",
+    "skipped_lines",
+    "functions",
+    "last_exception"
+  ],
+  "properties": {
+    "trace_id": {
+      "type": "string"
+    },
+    "steps_total": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "exit_code": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "argv": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skipped_lines": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "functions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "calls"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "calls": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "last_exception": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "i",
+            "node_id",
+            "line",
+            "value"
+          ],
+          "properties": {
+            "i": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "node_id": {
+              "type": "string"
+            },
+            "line": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "value": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
