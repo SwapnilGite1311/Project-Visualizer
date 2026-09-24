@@ -1,0 +1,17 @@
+name: ci-plan
+on:
+  push:
+    branches: [main]
+    paths: ['docs/plan/**', 'scripts/plan/**']
+  pull_request:
+    paths: ['docs/plan/**', 'scripts/plan/**']
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Plan lint
+        run: python scripts/plan/plan_lint.py docs/plan/PROJECT_VISUALIZER_BUILD_PLAN.md
