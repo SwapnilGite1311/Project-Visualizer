@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/common/edge.schema.json",
+  "title": "Edge",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "kind", "source_id", "target_id", "weight", "resolved"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "kind": { "$ref": "enums.schema.json#/$defs/edge_kind" },
+    "source_id": { "type": "string", "minLength": 1 },
+    "target_id": { "type": "string", "minLength": 1 },
+    "weight": { "type": "integer", "minimum": 1 },
+    "resolved": { "type": "boolean" }
+  }
+}
