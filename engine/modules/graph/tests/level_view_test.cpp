@@ -25,7 +25,7 @@ bool has_node(const LevelView& v, const std::string& id) {
 }  // namespace
 
 TEST(GraphLevelView, ProjectLevel) {
-    const Graph g = testing::sample_graph();
+    const Graph g = pv::graph::testing::sample_graph();
     const LevelView v = build_level_view(g, "project:");
     EXPECT_EQ(v.parent.id, "project:");
     ASSERT_EQ(v.nodes.size(), 3u);
@@ -42,13 +42,13 @@ TEST(GraphLevelView, ProjectLevel) {
 }
 
 TEST(GraphLevelView, PackageLevel) {
-    const LevelView v = build_level_view(testing::sample_graph(), "package:app");
+    const LevelView v = build_level_view(pv::graph::testing::sample_graph(), "package:app");
     EXPECT_EQ(v.nodes.size(), 1u);
     EXPECT_TRUE(v.edges.empty());
 }
 
 TEST(GraphLevelView, ModuleLevel) {
-    const LevelView v = build_level_view(testing::sample_graph(), "module:app/a.py");
+    const LevelView v = build_level_view(pv::graph::testing::sample_graph(), "module:app/a.py");
     ASSERT_EQ(v.nodes.size(), 2u);
     EXPECT_EQ(v.nodes[0].id, "class:app/a.py#C");
     EXPECT_EQ(v.nodes[1].id, "function:app/a.py#f");
@@ -58,5 +58,5 @@ TEST(GraphLevelView, ModuleLevel) {
 }
 
 TEST(GraphLevelView, UnknownParentThrows) {
-    EXPECT_THROW(build_level_view(testing::sample_graph(), "module:nope.py"), core::PvError);
+    EXPECT_THROW(build_level_view(pv::graph::testing::sample_graph(), "module:nope.py"), core::PvError);
 }
