@@ -60,4 +60,25 @@ void from_json(const Json& j, Node& n) {
     n.health = *parsed_health;
 }
 
+void to_json(Json& j, const Edge& e) {
+    j = Json{{"id", e.id},
+             {"kind", to_string(e.kind)},
+             {"source_id", e.source_id},
+             {"target_id", e.target_id},
+             {"weight", e.weight},
+             {"resolved", e.resolved}};
+}
+
+void from_json(const Json& j, Edge& e) {
+    j.at("id").get_to(e.id);
+    const std::string kind = j.at("kind").get<std::string>();
+    const auto parsed_kind = edge_kind_from_string(kind);
+    if (!parsed_kind) throw PvError(err::InvalidParams, "unknown edge kind: " + kind);
+    e.kind = *parsed_kind;
+    j.at("source_id").get_to(e.source_id);
+    j.at("target_id").get_to(e.target_id);
+    j.at("weight").get_to(e.weight);
+    j.at("resolved").get_to(e.resolved);
+}
+
 }  // namespace pv::core

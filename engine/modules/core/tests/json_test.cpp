@@ -51,6 +51,26 @@ TEST(CoreJson, NodeRoundTrip) {
     EXPECT_EQ(back.metrics.fan_out, 3);
 }
 
+TEST(CoreJson, EdgeMatchesContractExample) {
+    Edge e;
+    e.id = "calls|function:src/a.py#f|function:src/b.py#g";
+    e.kind = EdgeKind::Calls;
+    e.source_id = "function:src/a.py#f";
+    e.target_id = "function:src/b.py#g";
+    e.weight = 2;
+    e.resolved = true;
+    const Json expected = Json::parse(R"({"id": "calls|function:src/a.py#f|function:src/b.py#g", "kind": "calls",
+ "source_id": "function:src/a.py#f", "target_id": "function:src/b.py#g",
+ "weight": 2, "resolved": true})");
+    EXPECT_EQ(Json(e), expected);
+    EXPECT_EQ(expected.get<Edge>().weight, 2);
+}
+
+TEST(CoreJson, EdgeUnknownKindThrows) {
+    const Json j = Json::parse(R"({"id":"x","kind":"pizza","source_id":"a","target_id":"b","weight":1,"resolved":true})");
+    EXPECT_THROW(j.get<Edge>(), PvError);
+}
+
 TEST(CoreJson, NodeUnknownKindThrows) {
     Json j = Json::parse(kNodeJson);
     j["kind"] = "banana";
