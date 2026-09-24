@@ -51,7 +51,7 @@ export function InsightsPanel() {
     );
   }
   return (
-    <div style={{ padding: 8, overflowY: 'auto', height: '100%' }}>
+    <div style={{ padding: 8, overflowY: 'auto', overflowX: 'hidden', height: '100%', boxSizing: 'border-box' }}>
       <div style={{ marginBottom: 12 }}>
         <Button variant="primary" onClick={() => void explainArchitecture()}>
           Explain the architecture

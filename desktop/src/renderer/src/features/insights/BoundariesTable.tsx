@@ -1,15 +1,15 @@
 import type { PackageBoundary } from '../../api/types';
 import { revealNode } from '../../view/reveal';
 
-const cell = { padding: '3px 4px', textAlign: 'right' as const };
+const cell = { padding: '3px 2px', textAlign: 'right' as const, overflowWrap: 'anywhere' as const };
 
 export function BoundariesTable({ boundaries }: { boundaries: PackageBoundary[] }) {
   if (boundaries.length === 0) return <div style={{ color: 'var(--text-muted)' }}>No packages.</div>;
   return (
-    <table aria-label="Package boundaries" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+    <table aria-label="Package boundaries" style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 12 }}>
       <thead>
-        <tr style={{ color: 'var(--text-muted)' }}>
-          <th style={{ ...cell, textAlign: 'left' }}>Package</th>
+        <tr style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+          <th style={{ ...cell, textAlign: 'left', width: '30%' }}>Package</th>
           <th style={cell}>Inside links</th>
           <th style={cell}>Outgoing</th>
           <th style={cell}>Incoming</th>
@@ -30,7 +30,7 @@ export function BoundariesTable({ boundaries }: { boundaries: PackageBoundary[] 
                 aria-valuenow={b.instability}
                 aria-valuemin={0}
                 aria-valuemax={1}
-                style={{ height: 4, width: 48, marginLeft: 'auto', background: 'var(--border)', borderRadius: 2 }}
+                style={{ height: 4, width: '100%', background: 'var(--border)', borderRadius: 2 }}
               >
                 <div style={{ width: `${Math.round(b.instability * 100)}%`, height: '100%', background: 'var(--accent)', borderRadius: 2 }} />
               </div>
