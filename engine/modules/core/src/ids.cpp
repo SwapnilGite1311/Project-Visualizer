@@ -29,4 +29,12 @@ std::optional<NodeKind> kind_of_node_id(const std::string& id) {
     return node_kind_from_string(id.substr(0, colon));
 }
 
+std::string make_edge_id(EdgeKind kind, const std::string& source_id, const std::string& target_id) {
+    return to_string(kind) + "|" + source_id + "|" + target_id;
+}
+
+std::string make_agg_edge_id(EdgeKind kind, const std::string& source_id, const std::string& target_id) {
+    return "agg|" + make_edge_id(kind, source_id, target_id);
+}
+
 }  // namespace pv::core

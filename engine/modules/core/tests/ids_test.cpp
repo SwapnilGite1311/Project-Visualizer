@@ -22,3 +22,8 @@ TEST(CoreIds, KindOfNodeId) {
     EXPECT_EQ(kind_of_node_id("class:a.py#A"), NodeKind::Class);
     EXPECT_FALSE(kind_of_node_id("nothing").has_value());
 }
+
+TEST(CoreIds, EdgeIds) {
+    EXPECT_EQ(make_edge_id(EdgeKind::Calls, "function:a.py#f", "function:b.py#g"), "calls|function:a.py#f|function:b.py#g");
+    EXPECT_EQ(make_agg_edge_id(EdgeKind::Imports, "module:a.py", "package:app"), "agg|imports|module:a.py|package:app");
+}
