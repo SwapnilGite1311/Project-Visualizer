@@ -1,0 +1,32 @@
+name: ci-engine
+on:
+  push:
+    branches: [main]
+    paths: ['engine/**']
+  pull_request:
+    paths: ['engine/**']
+jobs:
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            preset: dev
+          - os: ubuntu-latest
+            preset: dev-unix
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ninja (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Configure
+        working-directory: engine
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        working-directory: engine
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Test
+        working-directory: engine
+        run: ctest --preset ${{ matrix.preset }} --output-on-failure
