@@ -7529,7 +7529,7 @@ publish:
 
 # PHASE 2 — INTERACTIVITY AND DEPENDENCY NAVIGATION
 
-**Mission:** make the twin interactive (component interactions, dependency navigation, paths and cycles), connect it to VS Code, add JavaScript/TypeScript, Java and Go through a generic multi-language framework, and build the cloud foundation (accounts, teams, snapshot sharing) **[ARCH-DEPENDENT]**.
+**Mission:** make the twin interactive (component interactions, dependency navigation, paths and cycles), connect it to VS Code, add JavaScript/TypeScript, Java and Go through a generic multi-language framework, add **Code Motion** (record a real run of the program and watch it move through the map and inside functions, in 2D and 3D), and build the cloud foundation (accounts, teams, snapshot sharing) **[ARCH-DEPENDENT]**.
 
 **Note on duplicates from the notebook:** "focus & isolation mode" was already built in P1-DEXPLORE; Phase 2 does not rebuild it — it extends interactions around it.
 
@@ -7537,9 +7537,9 @@ publish:
 
 | Wave | Modules (parallel inside a wave) |
 |---|---|
-| 1 | P2-CRPC · P2-DDEPS · P2-SBASE · P2-INFRA · P2-DIARY |
-| 2 | P2-DEPS · P2-LOCATE · P2-SNAP · P2-LGEN · P2-SDB · P2-OBS |
-| 3 | P2-LJS · P2-LJAVA · P2-LGO · P2-SAUTH · P2-DCOMP · P2-DDEPNAV |
+| 1 | P2-CRPC · P2-DDEPS · P2-SBASE · P2-INFRA · P2-DIARY · P2-CMCON · P2-CMREC |
+| 2 | P2-DEPS · P2-LOCATE · P2-SNAP · P2-LGEN · P2-SDB · P2-OBS · P2-CMENG · P2-CMHOST |
+| 3 | P2-LJS · P2-LJAVA · P2-LGO · P2-SAUTH · P2-DCOMP · P2-DDEPNAV · P2-CMUI |
 | 4 | P2-SGW · P2-SPROJ · P2-DBRIDGE |
 | 5 | P2-SSYNC · P2-VSC |
 | 6 | P2-DCLOUD |
@@ -8641,6 +8641,467 @@ type Counter interface {
 
 ---
 
+## Phase 2 — Code Motion (watch the code run in 2D and 3D)
+
+**What it is:** the user runs their program (a script, a module or tests) from the app. A small recorder writes down every function call, executed line, return value, exception and changed local variable inside the project's own files. The app then replays that run: on the map (2D and 3D) the running element glows and flows travel along the edges between elements; inside a function the statements are laid out as a path, a runner moves along it while the variables change, and the call stack is drawn as stacked floors in 3D. Programs that cannot be run can still be "walked through" using the static call tree.
+
+**Why here:** it needs only Phase 1 (graph, parser, map, 2D/3D renderers) and is local-first, so it does not depend on the cloud or on the Phase 3 runtime agents. Phase 3 (live runtime overlays) and Phase 4 (AI debugging) can later reuse the trace format and the inside view.
+
+**Shared Code Motion rules:**
+- The trace is a UTF-8 JSONL file, one event per line, validated by `contracts/motion/trace-event.schema.json`. `file` is project-relative with `/` separators; `func` is the function's qualified name (`UserService.get_user`, `<module>` for module-level code).
+- Only files under the project root are recorded, never the standard library or installed packages. Only the main thread is recorded.
+- Variable values are `repr` texts cut to at most 120 characters (`--max-repr`, 20–200); at most 20 changed variables per event.
+- A run stops being recorded after `--max-events` events (default 200,000); the trace then ends with `"truncated": true`.
+- The trace stays on the user's computer (`<userData>/traces/`, newest 10 kept).
+
+---
+
+### MODULE P2-CMCON — Code Motion contracts
+- **Type:** CODE
+- **Lane:** CONTRACTS
+- **Owns:** `contracts/motion/**` · `contracts/rpc/motion/**`
+- **Starts after:** P1-SIGN
+- **Goal:** the trace event format and the `motion.*` RPC schemas (same rules as P1-CRPC).
+
+**Rules:** identical to the rules paragraph of P1-CRPC. After each task run `cd contracts && pnpm validate` → `failed=0`.
+
+#### P2-CMCON-001 — Trace event schema
+**Files:** `contracts/motion/trace-event.schema.json` (create) · `contracts/motion/examples/trace-event.1.json` (create) · `contracts/motion/examples/trace-event.2.json` (create) · `contracts/motion/examples/trace-event.3.json` (create)
+**Refs:** R9
+**Why:** one line of a pv-trace JSONL file.
+**Steps:**
+1. Object, `additionalProperties: false`, required `v, seq, kind, file, line, func, depth, t_ns`: `v` const `1`; `seq` integer ≥ 0; `kind` enum `["start","call","line","return","exception","end"]`; `file` string; `line` integer ≥ 0; `func` string; `depth` integer ≥ 0; `t_ns` integer ≥ 0. Optional: `locals` (object, `additionalProperties: {"type":"string","maxLength":200}`, `maxProperties: 20`), `value` (string, maxLength 200), `argv` (array of string), `cwd` (string), `python` (string), `root` (string), `exit_code` (integer), `events` (integer ≥ 0), `truncated` (boolean).
+2. Examples: (1) start `{"v":1,"seq":0,"kind":"start","file":"","line":0,"func":"","depth":0,"t_ns":0,"argv":["main.py"],"cwd":"C:/code/demo","python":"3.12.4","root":"C:/code/demo"}`; (2) line `{"v":1,"seq":5,"kind":"line","file":"app/services.py","line":11,"func":"UserService.get_user","depth":2,"t_ns":152000,"locals":{"user_id":"1"}}`; (3) end `{"v":1,"seq":120,"kind":"end","file":"","line":0,"func":"","depth":0,"t_ns":2400000,"exit_code":0,"events":121,"truncated":false}`.
+**Verify:** `cd contracts && pnpm validate` → `failed=0`.
+
+#### P2-CMCON-002 — motion.body
+**Files:** `contracts/rpc/motion/body.params.schema.json` (create) · `contracts/rpc/motion/body.result.schema.json` (create) · `contracts/rpc/motion/examples/body.result.1.json` (create)
+**Refs:** R9
+**Why:** the statement blocks of a module, class, function or method.
+**Steps:**
+1. `body.params`: `{project_id: string minLength 1, node_id: string minLength 1}`, both required.
+2. `body.result`: `{node_id: string, file_path: string, start_line: integer ≥ 1, end_line: integer ≥ 1, blocks: array of Block}`, all required. `$defs.block`: `{id: string pattern "^b[0-9]+$", kind: enum ["statement","if","elif","else","for","while","try","except","finally","with","return","raise","break","continue","pass","def","class","match","case"], line: integer ≥ 1, end_line: integer ≥ 1, depth: integer ≥ 0, parent: string or null, text: string maxLength 120, calls: array of string, writes: array of string}`, all required.
+3. Example: `method:app/services.py#UserService.get_user` with the 4 blocks listed in P2-CMENG-001 test 1.
+**Verify:** `cd contracts && pnpm validate` → `failed=0`.
+
+#### P2-CMCON-003 — motion.load_trace, motion.steps and motion.unload
+**Files:** `contracts/rpc/motion/load_trace.params.schema.json` (create) · `contracts/rpc/motion/load_trace.result.schema.json` (create) · `contracts/rpc/motion/steps.params.schema.json` (create) · `contracts/rpc/motion/steps.result.schema.json` (create) · `contracts/rpc/motion/unload.params.schema.json` (create) · `contracts/rpc/motion/unload.result.schema.json` (create) · `contracts/rpc/motion/examples/load_trace.result.1.json` (create) · `contracts/rpc/motion/examples/steps.result.1.json` (create)
+**Refs:** R9
+**Why:** load a recorded run into the engine and page through its steps.
+**Steps:**
+1. `load_trace.params`: `{project_id: string minLength 1, path: string minLength 1}`. `load_trace.result`: `{trace_id: string, steps_total: integer ≥ 0, truncated: boolean, exit_code: integer or null, argv: array of string, skipped_lines: integer ≥ 0, functions: array of {node_id: string, calls: integer ≥ 1}, last_exception: null or {i: integer ≥ 0, node_id: string, line: integer ≥ 0, value: string}}`, all required.
+2. `steps.params`: `{trace_id: string minLength 1, from: integer ≥ 0, count: integer 1–5000}`, `trace_id` required. `steps.result`: `{total: integer ≥ 0, steps: array of Step}`. `$defs.step`: `{i: integer ≥ 0, kind: enum ["call","line","return","exception"], node_id: string, file: string, line: integer ≥ 0, depth: integer ≥ 0, t_ns: integer ≥ 0, locals: object of strings, value: string}`, all required.
+3. `unload.params`: `{trace_id: string minLength 1}`; `unload.result`: `{removed: boolean}`.
+4. Examples: a load result with 12 steps, `exit_code` 0, two functions, `last_exception` null; a steps result with a `call` step and a `line` step.
+**Verify:** `cd contracts && pnpm validate` → `failed=0`.
+
+---
+
+### MODULE P2-CMREC — Python execution recorder
+- **Type:** CODE
+- **Lane:** AGENT
+- **Owns:** `recorders/python/**`
+- **Starts after:** P1-SIGN
+- **Goal:** `pv_trace`, a zero-dependency Python 3.9+ package that runs a program and writes a pv-trace JSONL file (Code Motion rules above). Tests use the standard library `unittest`, so nothing needs to be installed.
+
+#### P2-CMREC-001 — Package skeleton and safe repr
+**Files:** `recorders/python/pyproject.toml` (create) · `recorders/python/pv_trace/__init__.py` (create) · `recorders/python/pv_trace/reprs.py` (create) · `recorders/python/tests/__init__.py` (create) · `recorders/python/tests/test_reprs.py` (create)
+**Refs:** R14
+**Why:** the package, and variable values that can never crash or flood the recorder.
+**Steps:**
+1. `pyproject.toml`: `[project] name = "pv-trace"`, `version = "0.1.0"`, `requires-python = ">=3.9"`, `dependencies = []`, `description = "Project Visualizer execution recorder"`; `[build-system] requires = ["setuptools>=68"]`, `build-backend = "setuptools.build_meta"`; `[tool.setuptools] packages = ["pv_trace"]`.
+2. `__init__.py`: `__version__ = "0.1.0"`. `tests/__init__.py`: empty.
+3. `reprs.py`: a module-level `reprlib.Repr()` with `maxlevel = 2`, `maxstring = 60`, `maxother = 60` and `maxlist = maxtuple = maxset = maxfrozenset = maxdict = maxdeque = maxarray = 6`; `def safe_repr(value, limit=120) -> str`: its `repr(value)`; any exception → `"<unrepresentable " + type(value).__name__ + ">"`; if longer than `limit`, keep `limit - 1` characters and add `"…"`.
+4. Tests: `safe_repr(1) == "1"`; `safe_repr("ab") == "'ab'"`; `safe_repr(list(range(100))) == "[0, 1, 2, 3, 4, 5, ...]"`; an object whose `__repr__` raises → `"<unrepresentable Bad>"`; `safe_repr("x" * 500, 10)` has length 10 and ends with `"…"`.
+**Verify:** `cd recorders/python && python -m unittest discover -s tests -t . -v` → `OK`.
+
+#### P2-CMREC-002 — Project filter
+**Files:** `recorders/python/pv_trace/filters.py` (create) · `recorders/python/tests/test_filters.py` (create)
+**Refs:** R14
+**Why:** record only the user's own files.
+**Steps:**
+1. `from __future__ import annotations`. `EXCLUDED_DIRS = {".git", ".venv", "venv", "env", "site-packages", "dist-packages", "node_modules", "__pycache__", ".tox", ".nox"}`.
+2. `class ProjectFilter`: `__init__(self, root: str)` stores `os.path.abspath(root)` and a cache dict. `relative(self, filename: str) -> str | None` (cached per filename): `None` if `filename` starts with `"<"` or does not end with `".py"`; `path = os.path.abspath(filename)`; `rel = os.path.relpath(path, root)` (a `ValueError`, e.g. another drive, → `None`); `None` if `rel` starts with `".."` or any part of `rel` is in `EXCLUDED_DIRS`; else `rel` with `os.sep` replaced by `"/"`.
+3. Tests with a temporary folder: `pkg/a.py` inside → `"pkg/a.py"`; a file outside → `None`; `venv/lib/x.py` inside → `None`; `"<string>"` → `None`; `notes.txt` → `None`.
+**Verify:** `cd recorders/python && python -m unittest discover -s tests -t . -v` → `OK`.
+
+#### P2-CMREC-003 — JSONL writer
+**Files:** `recorders/python/pv_trace/writer.py` (create) · `recorders/python/tests/test_writer.py` (create)
+**Refs:** R14
+**Why:** one compact JSON object per line.
+**Steps:**
+1. `class TraceWriter`: `__init__(self, path)` opens the file for writing (`encoding="utf-8"`, `newline="\n"`), `self._seq = 0`, `self._t0 = time.perf_counter_ns()`. `count` property → number of events written. `write(self, kind, file="", line=0, func="", depth=0, **extra)`: event `{"v": 1, "seq": seq, "kind": kind, "file": file, "line": line, "func": func, "depth": depth, "t_ns": time.perf_counter_ns() - t0}` plus every `extra` item whose value is not `None`; `json.dumps(event, ensure_ascii=False, separators=(",", ":"))` + `"\n"`; increment seq. `close()` flushes and closes; calling it twice is harmless.
+2. Tests: two writes → two lines with seq 0 and 1; an extra `locals` dict is written; an extra with value `None` is omitted; `t_ns` never decreases; `count == 2`.
+**Verify:** `cd recorders/python && python -m unittest discover -s tests -t . -v` → `OK`.
+
+#### P2-CMREC-004 — Recorder
+**Files:** `recorders/python/pv_trace/recorder.py` (create) · `recorders/python/tests/sample_project/calc.py` (create) · `recorders/python/tests/test_recorder.py` (create)
+**Refs:** R14
+**Why:** the tracing itself, with `sys.settrace` (works on every Python from 3.9).
+**Steps:**
+1. `tests/sample_project/calc.py` exactly:
+```python
+def add(a, b):
+    total = a + b
+    return total
+
+
+def run():
+    values = []
+    for i in range(3):
+        values.append(add(i, 10))
+    try:
+        int("x")
+    except ValueError:
+        values.append(-1)
+    return values
+```
+2. `class Recorder`: `__init__(self, project_filter, writer, max_events=200_000, max_repr=120)`; attributes `truncated = False`, `_full = False`, `_depths = {}` and `_snaps = {}` (both keyed by `id(frame)`). `start()` → `sys.settrace(self._global)`; `stop()` → `sys.settrace(None)`.
+3. `_global(frame, event, arg)` (called for every new frame): return `None` if `_full` or `project_filter.relative(frame.f_code.co_filename)` is `None`. Otherwise: depth = (depth of the nearest `f_back` frame found in `_depths`) + 1, or 0 if none; store it; emit `call` with `locals` = changed locals (see 5); return `self._local`.
+4. `_local(frame, event, arg)`: return `None` if `_full`. `line` → emit `line` with changed locals. `return` → emit `return` with changed locals and `value = safe_repr(arg, max_repr)`, then forget the frame in `_depths` and `_snaps`. `exception` → `arg` is `(type, value, traceback)`: emit `exception` with `value = type.__name__ + ": " + str(value)` (a failing `str` → `"?"`), cut to `max_repr` characters. Return `self._local`.
+5. Changed locals: for each `name, value` in `frame.f_locals.items()`, skipping names that start with `"__"`: `r = safe_repr(value, max_repr)`; if different from the frame's last snapshot, store it and add `name: r` to the result; stop at 20 names. An empty result is passed as `None` (omitted).
+6. Every emit writes `file` (the filter's relative path), `line = frame.f_lineno`, `func = getattr(code, "co_qualname", code.co_name)`, `depth`. When `writer.count >= max_events` after a write: `_full = True`, `truncated = True`, `sys.settrace(None)`.
+7. Tests (add `tests/sample_project` to `sys.path`, filter root = that folder, run `calc.run()` between `start()` and `stop()`, then read the JSONL): exactly 3 `call` events with func `add`; the first event is a `call` of `run` with depth 0; the first `add` call has depth 1 and locals `{"a": "0", "b": "10"}`; an `add` `line` event on line 3 has locals `{"total": "10"}`; an `exception` event in `run` whose value starts with `"ValueError: invalid literal"`; the `return` event of `run` has value `"[10, 11, 12, -1]"`; with `max_events=5` exactly 5 lines are written and `truncated` is true.
+**Verify:** `cd recorders/python && python -m unittest discover -s tests -t . -v` → `OK`.
+
+#### P2-CMREC-005 — Command line
+**Files:** `recorders/python/pv_trace/cli.py` (create) · `recorders/python/pv_trace/__main__.py` (create) · `recorders/python/tests/sample_project/main.py` (create) · `recorders/python/tests/test_cli.py` (create)
+**Refs:** R14
+**Why:** `python -m pv_trace --root DIR --out FILE [--max-events N] [--max-repr N] -- (SCRIPT | -m MODULE) [ARGS...]`.
+**Steps:**
+1. `cli.main(argv=None) -> int`: split `argv` (default `sys.argv[1:]`) at the first `"--"`; parse the options part with `argparse` (`--root` and `--out` required; `--max-events` int default 200000, clamped to 1000–2000000; `--max-repr` int default 120, clamped to 20–200). An empty target → print the usage line to stderr and return 2.
+2. Target `-m MODULE ARGS…` (missing MODULE → return 2): `sys.argv = [MODULE] + ARGS`, `sys.path.insert(0, os.getcwd())`, run `runpy.run_module(MODULE, run_name="__main__", alter_sys=True)`. Target `SCRIPT ARGS…`: `script = os.path.abspath(SCRIPT)`, `sys.argv = [script] + ARGS`, `sys.path.insert(0, os.path.dirname(script))`, run `runpy.run_path(script, run_name="__main__")`.
+3. Write `start` with `argv` (the target list), `cwd`, `python` (`platform.python_version()`), `root` (absolute, `/` separators). Start the `Recorder`; run the target; `SystemExit` → exit code `e.code` if it is an int, 0 if `None`, else 1; any other exception → print the traceback to stderr, exit code 1; always `stop()`. Then write `end` with `exit_code`, `events` (= events written including this one) and `truncated`; close; return the exit code.
+4. `__main__.py`: `import sys` / `from .cli import main` / `sys.exit(main())`.
+5. `tests/sample_project/main.py` exactly:
+```python
+import sys
+
+from calc import run
+
+
+def main():
+    print(run())
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+6. Tests with `subprocess.run([sys.executable, "-m", "pv_trace", "--root", SAMPLE, "--out", OUT, "--", SAMPLE + "/main.py"], env with PYTHONPATH = the recorders/python folder, capture_output=True, text=True)`: return code 0; stdout contains `[10, 11, 12, -1]`; the first event is `start` and its `argv[0]` ends with `main.py`; the last event is `end` with `exit_code` 0, `truncated` false and `events` equal to the number of lines; a `call` event with `file` `"calc.py"` and func `"add"`; a `call` event with `file` `"main.py"` and func `"<module>"`. A second test: a temporary root with `boom.py` containing `raise RuntimeError("boom")` → return code 1, an `exception` event with value `"RuntimeError: boom"`, `end.exit_code` 1.
+**Verify:** `cd recorders/python && python -m unittest discover -s tests -t . -v` → `OK`.
+
+#### P2-CMREC-006 — README
+**Files:** `recorders/python/README.md` (create)
+**Refs:** R2
+**Why:** how to use it by hand and what it records.
+**Steps:**
+1. Title `# pv-trace (Python execution recorder)`; sections `## Usage` (the command line with a script example and a `-m pytest` example), `## What is recorded` (the event kinds; changed locals; project files only), `## Limits` (main thread only; programs run roughly 10–50× slower while recorded; `--max-events`; values are shortened `repr` texts), `## Privacy` (the trace contains variable values from your program and never leaves your computer).
+**Verify:** `grep -c "^## " recorders/python/README.md` → `4`.
+
+---
+
+### MODULE P2-CMENG — Code Motion engine
+- **Type:** CODE
+- **Lane:** ENGINE
+- **Owns:** `engine/modules/motion/**`
+- **Starts after:** P2-CMCON
+- **Goal:** `motion.body` (statement blocks of a module, class, function or method) and trace loading (`motion.load_trace`, `motion.steps`, `motion.unload`) that maps every recorded event to the innermost graph node.
+
+#### P2-CMENG-001 — Statement blocks
+**Files:** `engine/modules/motion/CMakeLists.txt` (create) · `engine/modules/motion/include/pv/motion/body.hpp` (create) · `engine/modules/motion/src/body.cpp` (create) · `engine/modules/motion/tests/body_test.cpp` (create)
+**Refs:** R6, R7
+**Why:** the "inside" of a function, in the order the code is written.
+**Steps:**
+1. `CMakeLists.txt` exactly: `pv_add_module(NAME motion DEPS pv_session pv_lang_python)`
+2. `body.hpp` (namespace `pv::motion`):
+```cpp
+struct Block {
+    std::string id, kind, text, parent;   // parent "" = top level of the body
+    int line = 0, end_line = 0, depth = 0;
+    std::vector<std::string> calls, writes;
+};
+// Blocks of the body of the class/function definition that starts on def_line (1-based),
+// or of the whole module when def_line is 0.
+// Throws PvError(err::NodeNotFound, "no definition starts on line <n>") if there is none.
+std::vector<Block> body_blocks(const std::string& source, int def_line);
+```
+3. Parse with `parse::TsParser(lang_python::tree_sitter_python())` (from `pv/lang_python/internal.hpp`). The definition is the first `function_definition` or `class_definition` in pre-order whose start line, or whose parent `decorated_definition`'s start line, equals `def_line`; its body is the field `body`. For `def_line` 0 the body is the root node.
+4. `walk(body, depth, parent)`: for every named child `c` except `comment`: emit a block for `c`; if `c` is `if_statement`, `for_statement`, `while_statement`, `try_statement`, `with_statement`, `match_statement` or `case_clause`, walk its last named child of type `block` with `depth + 1` and parent = `c`'s block id, then, for every named child `k` of `c` of type `elif_clause`, `else_clause`, `except_clause`, `except_group_clause` or `finally_clause`: emit `k` as a sibling of `c` (same depth and parent) and walk `k`'s last named child of type `block` with `depth + 1` and parent = `k`'s id. Definitions are not walked into.
+5. Kinds: `if_statement`→`if`, `elif_clause`→`elif`, `else_clause`→`else`, `for_statement`→`for`, `while_statement`→`while`, `try_statement`→`try`, `except_clause`/`except_group_clause`→`except`, `finally_clause`→`finally`, `with_statement`→`with`, `match_statement`→`match`, `case_clause`→`case`, `return_statement`→`return`, `raise_statement`→`raise`, `break_statement`→`break`, `continue_statement`→`continue`, `pass_statement`→`pass`, `function_definition`→`def`, `class_definition`→`class`, `decorated_definition`→ the kind of its `definition` field; everything else → `statement`.
+6. Fields: `id` = `"b"` + number in emission order starting at 1; `line`/`end_line` = start/end row + 1; `text` = `lang_python::first_line(node_text, 120)`; `calls` = the `function` field text of every `call` node inside the block's node, in document order, without duplicates, not descending into `block` nodes, clause nodes (the five clause types and `case_clause`) or definitions; for `def`/`class` blocks `calls` is empty and `writes` is `[name]`; `writes`: for an `expression_statement` whose first named child is an `assignment` or `augmented_assignment`, and for the `left` field of a `for_statement`: an `identifier` or `attribute` gives its text, a `pattern_list`/`tuple_pattern`/`list_pattern` gives the text of each `identifier`/`attribute` child.
+7. Tests suite `MotionBody` (sources read from `session::pyproj_small_path()`):
+   1. `app/services.py`, line 8 → 4 blocks: `b1` if 9–10 depth 0 parent "" text `if not is_valid(user_id):` calls `["is_valid"]`; `b2` raise 10 depth 1 parent `b1` calls `["ValueError"]`; `b3` statement 11 depth 0 writes `["user"]` calls `["User","normalize"]`; `b4` return 12 calls `["self.format_user"]`.
+   2. `app/models.py`, line 14 → `b1` if 15–16; `b2` return 16 depth 1 parent `b1` calls `["self.name.title"]`; `b3` return 17 depth 0.
+   3. `app/models.py`, line 9 (class `User`) → `b1` def 10–12 writes `["__init__"]`; `b2` def 14–17 writes `["display"]`.
+   4. `main.py`, line 0 → kinds `statement, statement, statement, def, if, statement` with lines 1, 2, 4, 7, 14, 15; the last has depth 1, parent `b5`, calls `["sys.exit","main"]`.
+   5. This source, line 1 → 23 blocks; check: `b2` for 3–11 writes `["i","x"]` calls `["enumerate"]`; `b3` if depth 1 parent `b2`; `b5` elif depth 1 parent `b2`; `b7` else line 8; `b8` writes `["total"]` depth 2 parent `b7`; `b9` else line 10 depth 0; `b13` try line 14; `b14` with calls `["open"]`; `b15` writes `["data"]` calls `["fh.read"]` depth 2; `b16` except line 17 depth 0; `b20` finally line 21; `b22` def 23–24 writes `["inner"]`; `b23` return line 25.
+```python
+def f(items):
+    total = 0
+    for i, x in enumerate(items):
+        if x > 10:
+            break
+        elif x < 0:
+            continue
+        else:
+            total += x
+    else:
+        pass
+    while total > 100:
+        total -= 1
+    try:
+        with open("a") as fh:
+            data = fh.read()
+    except OSError as e:
+        data = ""
+    else:
+        pass
+    finally:
+        close()
+    def inner():
+        return 1
+    return total
+```
+   6. `class A:\n    @staticmethod\n    def s():\n        return 1\n`: line 1 → one `def` block on line 2 writes `["s"]`; line 2 and line 3 → one `return` block on line 4; line 99 → `PvError` with code `err::NodeNotFound`.
+**Verify:** `cd engine && cmake --preset dev && cmake --build --preset dev && ctest --preset dev -R MotionBody` → all pass.
+
+#### P2-CMENG-002 — Trace loading and store
+**Files:** `engine/modules/motion/include/pv/motion/trace.hpp` (create) · `engine/modules/motion/src/trace.cpp` (create) · `engine/modules/motion/tests/trace_test.cpp` (create)
+**Refs:** R6, R7
+**Why:** turn a recorded run into steps that point at graph nodes.
+**Steps:**
+1. `trace.hpp` (namespace `pv::motion`):
+```cpp
+struct Step {
+    int i = 0;
+    std::string kind, node_id, file;
+    int line = 0, depth = 0;
+    std::int64_t t_ns = 0;
+    nlohmann::json locals = nlohmann::json::object();
+    std::string value;
+};
+struct LoadedTrace {
+    std::vector<Step> steps;
+    std::vector<std::string> argv;
+    std::optional<int> exit_code;
+    bool truncated = false;
+    int skipped_lines = 0;
+};
+LoadedTrace load_trace_file(const graph::Graph& g, const std::string& path, std::size_t max_steps = 500000);
+struct FunctionCount { std::string node_id; int calls = 0; };
+std::vector<FunctionCount> function_counts(const LoadedTrace& t);  // call steps per non-empty node_id; calls desc, then node_id
+const Step* last_exception(const LoadedTrace& t);                  // nullptr if none
+class TraceStore {                                                 // thread-safe; keeps the 3 newest traces
+public:
+    std::string add(LoadedTrace trace);                            // "t1", "t2", …
+    std::shared_ptr<const LoadedTrace> get(const std::string& id) const;
+    bool remove(const std::string& id);
+private:
+    mutable std::mutex mutex_;
+    int next_ = 1;
+    std::vector<std::pair<std::string, std::shared_ptr<const LoadedTrace>>> traces_;
+};
+```
+2. `load_trace_file`: read the file (`core::read_file_text`), split into lines, skip empty lines; a line that is not a JSON object with a string `kind` in `start, call, line, return, exception, end` → `skipped_lines++`. `start` → `argv`; `end` → `exit_code` (if present) and `truncated` (if true). Other kinds → a step with `i` = number of steps so far, `file`, `line`, `depth`, `t_ns`, `locals` (object or `{}`), `value` (string or `""`); `node_id` = id of `g.innermost_at(file, line)` or `""`. For a `call` step whose node name differs from the last `.`-separated part of `func` (decorators move the first line), use the first node in `g.nodes_in_file(file)` with that name whose `span.start_line` is in `[line, line + 10]`, if any. After `max_steps` steps, stop reading and set `truncated = true`.
+3. Tests suite `MotionTrace` (a `session::TestEnv` with the Python adapter opens `pyproj_small`; the test writes a temporary JSONL file): lines `start` (argv `["main.py"]`); `call main.py 7 main 0`; `line main.py 8 main 0`; `call app/services.py 8 UserService.get_user 1` with locals `{"user_id":"1"}`; `line app/services.py 9`; `exception app/services.py 10` value `"ValueError: bad id"`; `return app/services.py 10` value `"None"`; the text `not json`; an object with kind `"weird"`; `call outside.py 1 x 0`; `end` with `exit_code` 1. Expect 7 steps; `skipped_lines` 2; step 0 node `function:main.py#main`; step 1 node `function:main.py#main`; step 2 node `method:app/services.py#UserService.get_user` with `locals.user_id == "1"`; step 6 node `""`; `argv == ["main.py"]`; `exit_code == 1`; `function_counts` → `function:main.py#main` 1 then `method:app/services.py#UserService.get_user` 1; `last_exception` → step 4 with value `"ValueError: bad id"`; `max_steps = 3` → 3 steps and `truncated`. `TraceStore`: ids `t1`, `t2`; after 4 adds `get("t1")` is null; `remove("t2")` true, then false.
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R MotionTrace` → all pass.
+
+#### P2-CMENG-003 — Motion RPC methods
+**Files:** `engine/modules/motion/src/register.cpp` (create) · `engine/modules/motion/tests/motion_rpc_test.cpp` (create)
+**Refs:** R9
+**Why:** expose Code Motion to the desktop.
+**Steps:**
+1. `void pv_register_motion(pv::session::Registry& reg)`; one `std::make_shared<TraceStore>()` captured by the lambdas.
+2. `motion.body {project_id, node_id}`: ready project; unknown node → `PvError(err::NodeNotFound)`; kind not module/class/function/method → `InvalidParams` "motion.body needs a module, class, function or method"; `file_path` not ending in `.py` → `Unsupported` "motion.body supports Python files only"; source = `core::read_file_text(core::path_join(root, file_path))`; `def_line` = 0 for a module, else `span.start_line` → `{node_id, file_path, start_line (1 for a module), end_line, blocks: [{id, kind, line, end_line, depth, parent (null when ""), text, calls, writes}]}`.
+3. `motion.load_trace {project_id, path}`: path not an existing regular file → `PvError(err::Io, "trace file not found: <path>")`; load under the project's read lock; add to the store → `{trace_id, steps_total, truncated, exit_code (null if none), argv, skipped_lines, functions (first 200 of function_counts), last_exception (null or {i, node_id, line, value})}`.
+4. `motion.steps {trace_id, from = 0, count = 500}`: `count` clamped to 1–5000; unknown trace → `InvalidParams` "unknown trace: <id>" → `{total, steps: [{i, kind, node_id, file, line, depth, t_ns, locals, value}]}` for `[from, min(from + count, total))`.
+5. `motion.unload {trace_id}` → `{removed}`.
+6. Tests suite `MotionRpc` (`TestEnv`): `motion.body` of `method:app/services.py#UserService.get_user` → 4 blocks, `blocks[0].parent` null, `blocks[1].parent == "b1"`; of `class:app/models.py#User` → 2 `def` blocks; of `package:app` → `InvalidParams`; `motion.load_trace` of a temporary 4-step trace → `steps_total` 4; `motion.steps` from 1 count 2 → steps with `i` 1 and 2 and `total` 4; unknown trace → `InvalidParams`; missing file → `Io`; `motion.unload` → `removed` true, then false.
+**Verify:** `cd engine && cmake --preset dev && cmake --build --preset dev && ctest --preset dev -R MotionRpc` → all pass.
+
+#### P2-CMENG-004 — motion README
+**Files:** `engine/modules/motion/README.md` (create)
+**Refs:** R2
+**Why:** how blocks and traces work.
+**Steps:**
+1. Title `# motion module`; sections `## Blocks` (kinds, depth, parent, calls, writes), `## Traces` (the JSONL format, mapping to nodes, the store of 3 traces), `## Methods`, `## Limits` (Python only; module-level `if` blocks at the top of big files can be long; decorated functions).
+**Verify:** `grep -c "^## " engine/modules/motion/README.md` → `4`.
+
+---
+
+### MODULE P2-CMHOST — Code Motion recording host
+- **Type:** CODE
+- **Lane:** DESKTOP
+- **Owns:** `desktop/src/main/motion/**` · `desktop/src/main/handlers/motion.ts` · `desktop/src/main/handlers/motion.test.ts`
+- **Starts after:** P2-CMREC
+- **Goal:** find Python, install the recorder into the app's data folder, run the user's command under it and return the trace path.
+
+#### P2-CMHOST-001 — Python finder
+**Files:** `desktop/src/main/motion/python-finder.ts` (create) · `desktop/src/main/motion/python-finder.test.ts` (create)
+**Refs:** R10
+**Why:** use the Python the user already has.
+**Steps:**
+1. Export `interface PythonInfo { command: string; args: string[]; version: string; executable: string }`, `type RunFn = (cmd: string, args: string[]) => Promise<{ code: number; stdout: string }>`, `pythonCandidates(platform: NodeJS.Platform, override?: string): Array<{ command: string; args: string[] }>` and `findPython(run: RunFn, platform: NodeJS.Platform, override?: string): Promise<PythonInfo | null>`.
+2. Candidates: a non-empty `override` first (`args: []`); then on `win32` `py -3`, `python`, `python3`; elsewhere `python3`, `python`.
+3. For each: `run(command, [...args, '-c', PROBE])` with `PROBE = 'import sys;print("%d.%d.%d" % tuple(sys.version_info[:3]));print(sys.executable)'`; accept when the code is 0 and the version is 3.9 or newer (first output line), `executable` = second line; errors count as a failure. None → `null`.
+4. Tests with a fake `run`: platform orders; override tried first; 3.8 rejected and the next candidate accepted; all failing → `null`.
+**Verify:** `cd desktop && pnpm vitest run src/main/motion/python-finder.test.ts` → all pass.
+
+#### P2-CMHOST-002 — Recorder installer
+**Files:** `desktop/src/main/motion/recorder-files.ts` (create) · `desktop/src/main/motion/recorder-files.test.ts` (create)
+**Refs:** R10
+**Why:** the app carries the recorder inside its own bundle (no extra packaging step) and writes it to disk when needed.
+**Steps:**
+1. Import the 7 files of `recorders/python/pv_trace/` (`__init__.py`, `__main__.py`, `cli.py`, `filters.py`, `recorder.py`, `reprs.py`, `writer.py`) with Vite `?raw` imports (for example `import cliPy from '../../../../recorders/python/pv_trace/cli.py?raw'`); export `RECORDER_FILES: Record<string, string>` (file name → content) and `RECORDER_VERSION` = the first 12 hex characters of the SHA-256 of all names and contents in name order.
+2. `installRecorder(baseDir: string): string`: `dir = join(baseDir, 'recorder')`; if `dir/VERSION` contains `RECORDER_VERSION` return `dir`; else create `dir/pv_trace`, write every file, write `VERSION`, return `dir` (the folder to put on `PYTHONPATH`).
+3. Tests with a temporary folder: files written (`pv_trace/cli.py` contains `def main`); a second call does not rewrite (`writeFileSync` spy); a changed `VERSION` file triggers a rewrite.
+**Verify:** `cd desktop && pnpm vitest run src/main/motion/recorder-files.test.ts` → all pass.
+
+#### P2-CMHOST-003 — Command parsing and recording run
+**Files:** `desktop/src/main/motion/record.ts` (create) · `desktop/src/main/motion/record.test.ts` (create)
+**Refs:** R10, R15
+**Why:** run the user's command safely (no shell) under the recorder.
+**Steps:**
+1. `parseCommand(text: string): string[]`: split on whitespace; `"…"` and `'…'` group words; empty → `Error('Enter a command, for example: main.py')`; an unclosed quote → `Error('Unclosed quote')`.
+2. `interface RecordOptions { python: PythonInfo; recorderDir: string; root: string; command: string[]; outFile: string; maxEvents: number; timeoutMs: number }`, `interface RecordResult { exitCode: number | null; stdout: string; stderr: string; timedOut: boolean; cancelled: boolean }`, `recordingArgs(o)` → `[...o.python.args, '-m', 'pv_trace', '--root', o.root, '--out', o.outFile, '--max-events', String(o.maxEvents), '--', ...o.command]`.
+3. `startRecording(o, spawnFn): { result: Promise<RecordResult>; cancel(): void }`: `spawnFn(o.python.command, recordingArgs(o), { cwd: o.root, env })` with `env` = `process.env` plus `PYTHONPATH` = `recorderDir` (followed by the existing value and `path.delimiter`, if any), `PYTHONIOENCODING=utf-8`, `PYTHONUNBUFFERED=1`; keep the last 20,000 characters of stdout and stderr; after `timeoutMs` kill the process (`timedOut`); `cancel()` kills it (`cancelled`); resolve on `exit` with the code, or on `error` with `exitCode: null` and the message appended to stderr.
+4. Tests with a fake child process (an `EventEmitter` with `stdout`/`stderr` emitters and a `kill` spy): the parse cases `main.py`, `-m pytest tests/test_a.py -q` (4 parts), `app.py --name "Ada Lovelace"`, empty, `"abc`; `recordingArgs` for `py -3` starts with `-3`, `-m`, `pv_trace`; output collected and exit code returned; timeout (fake timers) kills and sets `timedOut`; `cancel` sets `cancelled`.
+**Verify:** `cd desktop && pnpm vitest run src/main/motion/record.test.ts` → all pass.
+
+#### P2-CMHOST-004 — Motion IPC handler
+**Files:** `desktop/src/main/handlers/motion.ts` (create) · `desktop/src/main/handlers/motion.test.ts` (create)
+**Refs:** R10, R15
+**Why:** the renderer asks the main process to record.
+**Steps:**
+1. `register(ctx)`: `pv:motion.python` → `findPython(realRun, process.platform, ctx.settings.get('motion.python', ''))`; `realRun` uses `child_process.execFile` (no shell, `windowsHide`, 10 s timeout).
+2. `pv:motion.record {root, command, maxEvents?}`: one recording at a time (`Error('A recording is already running')`); `root` must be an existing folder; Python missing → `Error('Python 3.9 or newer was not found. Install it from python.org and try again.')`; `recorderDir = installRecorder(app.getPath('userData'))`; `outFile = join(userData, 'traces', 'trace-' + Date.now() + '.jsonl')` (folder created; only the newest 10 `trace-*.jsonl` files are kept); `maxEvents` clamped to 1,000–2,000,000 (default 200,000); `timeoutMs` 120,000; real spawn = `child_process.spawn` with `shell: false`, `windowsHide: true` → `{trace_path, trace_exists, exit_code, stdout, stderr, timed_out, cancelled}`.
+3. `pv:motion.cancel` → cancels the running recording → `true`/`false`. `pv:motion.pickTrace` → `dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'pv-trace', extensions: ['jsonl'] }] })` → the path or `null`.
+4. Tests with `vi.mock('electron')` and mocked `../motion/python-finder`, `../motion/record` and `../motion/recorder-files`: channels registered; busy error; Python missing error; result fields.
+**Verify:** `cd desktop && pnpm vitest run src/main/handlers/motion.test.ts` → all pass.
+
+#### P2-CMHOST-005 — README
+**Files:** `desktop/src/main/motion/README.md` (create)
+**Refs:** R2
+**Why:** how recording works on the desktop.
+**Steps:**
+1. Title `# Code Motion host`; sections `## Flow` (renderer → `pv:motion.record` → recorder → trace file → `motion.load_trace` in the engine), `## Python` (search order and the `motion.python` setting), `## Files` (`<userData>/recorder`, `<userData>/traces`, newest 10 kept).
+**Verify:** `grep -c "^## " desktop/src/main/motion/README.md` → `3`.
+
+---
+
+### MODULE P2-CMUI — Code Motion UI (2D and 3D)
+- **Type:** CODE
+- **Lane:** DESKTOP
+- **Owns:** `desktop/src/renderer/src/features/motion/**`
+- **Starts after:** P2-CMENG · P2-CMHOST
+- **Goal:** record a run (or load a trace, or walk through without running) and replay it: on the map the running element glows and flows move along the edges (2D and 3D); inside a function the statements form a path that a runner follows while variables change; in 3D the call stack is a pile of floors.
+
+#### P2-CMUI-001 — API wrappers
+**Files:** `desktop/src/renderer/src/features/motion/motion-api.ts` (create) · `desktop/src/renderer/src/features/motion/motion-api.test.ts` (create)
+**Refs:** R9, R10
+**Why:** typed calls.
+**Steps:**
+1. Types mirroring P2-CMCON and P2-CMHOST: `Block`, `BodyResult`, `TraceSummary`, `Step`, `PythonInfo`, `RecordResult` (`{trace_path, trace_exists, exit_code, stdout, stderr, timed_out, cancelled}`).
+2. Functions: `motionBody(pid, nodeId)` → rpc `motion.body`; `loadTrace(pid, path)` → `motion.load_trace`; `getSteps(traceId, from, count)` → `motion.steps`; `unloadTrace(traceId)` → `motion.unload`; `findPython()` → invoke `pv:motion.python`; `recordRun(root, command, maxEvents?)` → `pv:motion.record`; `cancelRecording()` → `pv:motion.cancel`; `pickTraceFile()` → `pv:motion.pickTrace`.
+3. Tests with the fake bridge: method/channel names and params.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/motion/motion-api.test.ts` → pass.
+
+#### P2-CMUI-002 — Frames
+**Files:** `desktop/src/renderer/src/features/motion/frames.ts` (create) · `desktop/src/renderer/src/features/motion/frames.test.ts` (create)
+**Refs:** R10
+**Why:** the call stack and variables at any step, fast enough to scrub.
+**Steps:**
+1. `interface Frame { nodeId: string; line: number; locals: Record<string, string>; changed: string[] }`. `applyStep(stack: Frame[], step: Step): Frame[]` (pure, new array): `call` → keep the first `step.depth` frames, push `{nodeId, line, locals: step.locals, changed: keys}`; `line` / `exception` / `return` → keep the first `step.depth + 1` frames (add frames for `step.node_id` if there are fewer), then on the top frame set `line`, merge `locals`, `changed` = keys of `step.locals` (`exception`: `[]`); `return` then pops the top frame.
+2. `class FrameIndex(every = 500)`: `stackAt(steps: Step[], i: number): Frame[]` replays from the nearest stored checkpoint (checkpoints are stored while replaying) and returns the stack **after** applying step `i`; `reset()`.
+3. Tests: a call/line/call/line/return/line sequence gives the expected stacks and locals; `stackAt` equals a naive replay for 50 random indices of a 3,000-step synthetic trace; depths lower than the stack trim it.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/motion/frames.test.ts` → all pass.
+
+#### P2-CMUI-003 — Player store
+**Files:** `desktop/src/renderer/src/features/motion/motion-store.ts` (create) · `desktop/src/renderer/src/features/motion/motion-store.test.ts` (create)
+**Refs:** R10
+**Why:** one place for recording, loading and playback.
+**Steps:**
+1. Zustand store: `status: 'idle' | 'recording' | 'loading' | 'ready' | 'error'`, `error`, `python` (`PythonInfo | null | undefined`), `command` (default `'main.py'`), `run` (`RecordResult | null`), `traceId`, `summary`, `steps: Step[]`, `total`, `index`, `playing`, `speed` (one of 0.25, 0.5, 1, 2, 4, 8; default 1), `mode: 'map' | 'inside'` (default `'map'`), `source: 'trace' | 'walkthrough'`.
+2. Actions: `checkPython()`; `setCommand(c)`; `record()` (needs `projectRoot`; status `recording`; `recordRun`; no trace file → status `error` with the last 500 characters of stderr, or "The program did not produce a trace."; else `load(trace_path)`); `load(path)` (unload the previous trace; `loadTrace`; then `getSteps` in chunks of 5,000 until all are loaded; status `ready`, index 0); `loadWalkthrough(steps)` (source `walkthrough`, no engine trace); `play()` (an interval every `350 / speed` ms moving to the next step — in `map` mode the next `call`, `return` or `exception` step, in `inside` mode the next step — and pausing at the end); `pause()`, `stepForward()`, `stepBack()` (same rule), `seek(i)` (clamped), `setSpeed`, `setMode`, `jumpToException()` (`summary.last_exception.i`), `close()` (pause, unload, reset to idle, clear overlay `motion`).
+3. Exported helpers `currentStep()` and `currentStack()` (a module-level `FrameIndex`, reset on load).
+4. Tests with mocked `motion-api` and fake timers: load in 2 chunks; play in `inside` mode advances 1 step per tick; `map` mode skips `line` steps; `stepBack`; `jumpToException`; `record` error when no trace file; `close` resets.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/motion/motion-store.test.ts` → all pass.
+
+#### P2-CMUI-004 — Motion on the map
+**Files:** `desktop/src/renderer/src/features/motion/map-motion.ts` (create) · `desktop/src/renderer/src/features/motion/MapMotionSync.tsx` (create) · `desktop/src/renderer/src/features/motion/map-motion.test.ts` (create)
+**Refs:** R10
+**Why:** see the program move between elements at any level, in 2D and 3D (overlays are render-agnostic).
+**Steps:**
+1. `buildMotionOverlay(levelNodeIds: Set<string>, levelEdges: Array<{ id: string; source: string; target: string }>, chain: Array<{ nodeId: string; ancestors: string[] }>, previousVisible: string | null): { overlay: Overlay; visible: string | null }`: `chain` is the stack (outermost first); `ancestors` are root-first and include the node; the visible element of a frame is the nearest of its ancestors (searching from the node upwards) that is in `levelNodeIds`. Frames' visible elements get `{ color: '#38bdf8' }`; the top frame's visible element gets `{ pulse: true, borderColor: '#fbbf24', badge: '▶' }`; if `previousVisible` differs from it, the level edge between them (either direction) gets `{ animated: true, color: '#fbbf24', width: 4 }`. `priority: 50`.
+2. `MapMotionSync` (global component): while the store is `ready` and in `map` mode, for the current stack fetch (and cache) `getAncestors` for each frame node and the current `getLevelView`, compute the overlay, `setOverlay('motion', overlay)`, remember `visible` as the next `previousVisible`; otherwise `setOverlay('motion', null)`.
+3. Tests for `buildMotionOverlay`: a method two levels below the current level lights its package; stack members are blue; the edge between the previous and the current element is animated; nothing visible → empty overlay.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/motion/map-motion.test.ts` → all pass.
+
+#### P2-CMUI-005 — Inside scene layout
+**Files:** `desktop/src/renderer/src/features/motion/scene.ts` (create) · `desktop/src/renderer/src/features/motion/scene.test.ts` (create)
+**Refs:** R10
+**Why:** pure positions shared by the 2D and 3D inside views.
+**Steps:**
+1. `BLOCK_COLORS: Record<string, string>` (`if`/`elif`/`else`/`match`/`case` `#f59e0b`; `for`/`while` `#8b5cf6`; `try`/`except`/`finally` `#ef4444`; `raise` `#dc2626`; `return` `#10b981`; `def`/`class` `#3b82f6`; `break`/`continue`/`pass` `#94a3b8`; `with` `#06b6d4`; `statement` `#64748b`).
+2. `interface Platform { blockId; kind; text; line; endLine; depth; index; x; y; width; color }`; `layoutBlocks(blocks: Block[]): Platform[]` → `index` = position in the list, `x = depth * 36`, `y = index * 52`, `width = 560 - depth * 36`.
+3. `activeBlockId(blocks: Block[], line: number): string | null` → among blocks with `line <= L <= end_line` the one with the greatest depth (ties: the later one); none → `null`.
+4. `floorsFor(stack: Frame[], bodies: Map<string, BodyResult>): Array<{ nodeId: string; level: number; activeBlockId: string | null }>` → one floor per stack frame that has a body, outermost = level 0.
+5. Tests: coordinates; `activeBlockId` for `get_user` blocks: line 10 → `b2`, line 11 → `b3`, line 99 → `null`; floors skip frames without bodies.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/motion/scene.test.ts` → all pass.
+
+#### P2-CMUI-006 — Inside view (2D)
+**Files:** `desktop/src/renderer/src/features/motion/InsideView2D.tsx` (create) · `desktop/src/renderer/src/features/motion/InsideView2D.test.tsx` (create)
+**Refs:** R10
+**Why:** the statements of the running function as a path, with a runner.
+**Steps:**
+1. Props `{ body: BodyResult; activeBlockId: string | null; returned?: string }`. An SVG sized to the layout: one `<g data-block-id>` per platform (rounded rect in the kind color at 25 % opacity with a solid left bar, kind label, `text`, `line`); the active one gets a 2 px `#fbbf24` stroke and `aria-current="step"`; a runner circle (`r = 9`, `#fbbf24`) left of the active platform, moved with a CSS `transform` transition of 250 ms; call chips `→ name` right of the active platform; `returned` shown as `⟵ <value>` under it.
+2. Tests: one group per block; the active group has `aria-current`; the runner moves when `activeBlockId` changes.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/motion/InsideView2D.test.tsx` → pass.
+
+#### P2-CMUI-007 — Inside view (3D)
+**Files:** `desktop/src/renderer/src/features/motion/inside-3d.ts` (create) · `desktop/src/renderer/src/features/motion/InsideView3D.tsx` (create)
+**Refs:** R10
+**Why:** the same path in 3D, with the call stack as floors.
+**Steps:**
+1. `class InsideScene3D { mount(container: HTMLElement): void; setFloors(floors: Array<{ nodeId: string; level: number; activeBlockId: string | null; platforms: Platform[]; title: string }>): void; destroy(): void }`; load `three` and `three/examples/jsm/controls/OrbitControls.js` with dynamic `import()` inside `mount` (like the 3D map renderer); background `#0f1320`; per platform a box (`width / 20` × 0.25 × 1.1) at `(x / 20, level * 4, -index * 1.5)` in the platform color, and a text sprite (canvas texture) above it; floors below the top one at 35 % opacity; a floor title sprite; a glowing sphere (radius 0.3) that moves 20 % of the way to the active platform of the top floor every frame; the camera target follows the sphere; `ResizeObserver`; `destroy` disposes geometries, materials, textures and the renderer.
+2. `InsideView3D` mounts the scene in a `div` and passes new floors on every change.
+**Verify:** `cd desktop && pnpm typecheck` → no errors (WebGL is checked by hand in P2-CMUI-010).
+
+#### P2-CMUI-008 — Motion panel
+**Files:** `desktop/src/renderer/src/features/motion/MotionPanel.tsx` (create) · `desktop/src/renderer/src/features/motion/Transport.tsx` (create) · `desktop/src/renderer/src/features/motion/FrameDetails.tsx` (create) · `desktop/src/renderer/src/features/motion/MotionPanel.test.tsx` (create)
+**Refs:** R10
+**Why:** start a recording and control the replay.
+**Steps:**
+1. Idle: a `TextInput` "Command" (placeholder `main.py  or  -m pytest tests/test_app.py`), buttons "Record and play" (needs an open project), "Load trace…" (`pickTraceFile` → `load`), "Walk through without running"; the Python line ("Python 3.12.4 found" or "Python 3.9+ was not found — you can still walk through without running."); the notice "This runs your program on your computer, like running it in a terminal."
+2. Recording: a spinner "Running your program…" and "Cancel". Error: the message and "Back".
+3. Ready: `Transport` (step back, play/pause, step forward, speed select, a range slider, "Step N of M", "Jump to error" when there is an exception, a Map / Inside toggle, "Close"); `FrameDetails` (variables of the top frame: name, value, changed ones highlighted; the call stack, top first, each clickable → `revealNode`); the program output (stdout/stderr tails, exit code) and, when truncated, "Recording stopped after N events."
+4. Tests with a mocked store: idle shows the Python line and calls `record`; ready shows the transport and the variables of the current frame.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/motion/MotionPanel.test.tsx` → all pass.
+
+#### P2-CMUI-009 — Walk through without running
+**Files:** `desktop/src/renderer/src/features/motion/walkthrough.ts` (create) · `desktop/src/renderer/src/features/motion/walkthrough.test.ts` (create)
+**Refs:** R10
+**Why:** "how it works" even when the program cannot be run.
+**Steps:**
+1. `walkthroughSteps(tree: CallTree, rootId: string, maxSteps = 2000): Step[]`: depth-first from `rootId` following the tree's edges in their order: `call` (depth d) → children → `return` (depth d); a node already on the current path is not entered again; `file`/`line` from the node, `locals` `{}`, `value` `''`, `t_ns` 0; stop at `maxSteps`.
+2. `startWalkthrough(nodeId?: string)`: the selected function, method or module, else the first entry point (`entryPoints`); `callTree(pid, id, 4)` → `useMotionStore.getState().loadWalkthrough(walkthroughSteps(...))`.
+3. Tests: A→B, A→C, B→D gives call A, call B, call D, return D, return B, call C, return C, return A with depths 0, 1, 2, 2, 1, 1, 1, 0; a cycle is not repeated; `maxSteps` respected.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/motion/walkthrough.test.ts` → all pass.
+
+#### P2-CMUI-010 — Inside view switch and registration
+**Files:** `desktop/src/renderer/src/features/motion/InsideView.tsx` (create) · `desktop/src/renderer/src/features/motion/register.tsx` (create) · `desktop/src/renderer/src/features/motion/register.test.tsx` (create)
+**Refs:** R10
+**Why:** plug Code Motion into the app.
+**Steps:**
+1. `InsideView`: empty state "Record a run in the Code Motion panel" when nothing is loaded; else fetch (and cache) `motionBody` for every stack frame node, then show `InsideView3D` when `viewMode` is `3d`, else `InsideView2D` for the top frame; a header with the function name and `file:line`.
+2. `register(app)`: `addPanel({ id: 'motion', title: 'Code Motion', area: 'bottom', order: 20, component: MotionPanel })`; `addPanel({ id: 'motion-inside', title: 'Inside view', area: 'center', order: 20, component: InsideView })`; `addGlobal({ id: 'motion-map-sync', component: MapMotionSync })`; `addCommand({ id: 'motion.open', title: 'Code Motion: record and play', shortcut: 'Ctrl+Shift+M', run: show the bottom panel })`; `addNodeAction({ id: 'motion-walkthrough', title: 'Walk through from here', order: 35, when: function/method/module, run: startWalkthrough(n.id) })`; `addNodeAction({ id: 'motion-watch', title: 'Watch this run inside', order: 36, when: a trace is loaded and the node is a function or method, run: seek to its first call step, set mode `inside`, show the center panel `motion-inside` })`.
+3. Test: registrations.
+4. Manual check: `pnpm dev`, open `pyproj_small`, record `main.py`: in 2D and 3D map mode the glow moves `main` → `get_user` → `is_valid` → … and back; the Inside view shows `get_user` with the runner stepping through its lines, `user_id = 1`, `user = <User…>`; in 3D the floors stack `main` → `get_user` → `format_user`.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/motion/register.test.tsx` → pass; manual check done.
+
+---
+
 ## Phase 2 — cloud foundation [ARCH-DEPENDENT]
 
 Everything in this section follows the current server architecture (R13). When the new client-server design arrives, these modules are reviewed first (Part H).
@@ -9511,15 +9972,15 @@ CREATE INDEX IF NOT EXISTS snapshots_project_idx ON snapshots(project_id, create
 - **Type:** DOCS
 - **Lane:** DOCS
 - **Owns:** `docs/user-guide/phase2/**`
-- **Starts after:** P2-DCLOUD · P2-VSC · P2-DDEPNAV · P2-DCOMP
-- **Goal:** document dependencies, VS Code, languages and sharing for users.
+- **Starts after:** P2-DCLOUD · P2-VSC · P2-DDEPNAV · P2-DCOMP · P2-CMUI
+- **Goal:** document dependencies, VS Code, languages, Code Motion and sharing for users.
 
 #### P2-UDOC-001 — Dependencies and interactions
 **Files:** `docs/user-guide/phase2/README.md` (create) · `docs/user-guide/phase2/dependencies.md` (create)
 **Refs:** R1
 **Why:** explain the new navigation.
 **Steps:**
-1. README lists the 4 pages of this folder. `dependencies.md`: sections `## Uses and used by`, `## Depth`, `## Find a path`, `## Circular dependencies`, `## Hover cards, pins and copy actions`.
+1. README lists the 5 pages of this folder. `dependencies.md`: sections `## Uses and used by`, `## Depth`, `## Find a path`, `## Circular dependencies`, `## Hover cards, pins and copy actions`.
 **Verify:** `grep -c "^## " docs/user-guide/phase2/dependencies.md` → `5`.
 
 #### P2-UDOC-002 — VS Code and languages
@@ -9539,6 +10000,14 @@ CREATE INDEX IF NOT EXISTS snapshots_project_idx ON snapshots(project_id, create
 1. Sections `## Do I need an account?` (no), `## Sign in`, `## Share a map`, `## Open a shared map`, `## What is shared` (map only, never code).
 **Verify:** `grep -c "^## " docs/user-guide/phase2/sharing.md` → `5`.
 
+#### P2-UDOC-004 — Code Motion
+**Files:** `docs/user-guide/phase2/code-motion.md` (create)
+**Refs:** R1
+**Why:** how to record a run and read the replay.
+**Steps:**
+1. Sections `## Record a run` (the command box, Python 3.9+, "this runs your program"), `## Watch it on the map` (glow, flows, 2D and 3D, speed and steps), `## Inside a function` (runner, variables, call stack floors in 3D, Jump to error), `## Walk through without running`, `## Limits and privacy` (main thread only, slower while recording, max events, traces stay on your computer).
+**Verify:** `grep -c "^## " docs/user-guide/phase2/code-motion.md` → `5`.
+
 ---
 
 ### MODULE P2-SIGN — Phase 2 review and sign-off
@@ -9553,7 +10022,7 @@ CREATE INDEX IF NOT EXISTS snapshots_project_idx ON snapshots(project_id, create
 **Refs:** R2
 **Why:** written end of Phase 2.
 **Steps:**
-1. `## Modules` (one checkbox per Phase 2 module); `## Checks` (plan lint; engine, desktop, server (`bash server/scripts/check-all.sh`), contracts and extension tests green; manual VS Code round trip; share + open shared map between two accounts; languages golden tests green); `## Sign-off`.
+1. `## Modules` (one checkbox per Phase 2 module); `## Checks` (plan lint; engine, desktop, server (`bash server/scripts/check-all.sh`), contracts and extension tests green; manual VS Code round trip; share + open shared map between two accounts; languages golden tests green; `recorders/python` unittest green; Code Motion replay of `pyproj_small/main.py` checked on the map and inside view, in 2D and 3D); `## Sign-off`.
 **Verify:** file exists with 3 sections.
 
 #### P2-SIGN-002 — Conduct sign-off (human task)
@@ -13965,12 +14434,12 @@ These are the server, AI-service and infrastructure modules (Lane SERVER, AI or 
 |---|---|---|
 | 0 | 17 | 118 |
 | 1 | 48 | 291 |
-| 2 | 25 | 128 |
+| 2 | 30 | 157 |
 | 3 | 24 | 98 |
 | 4 | 25 | 73 |
 | 5 | 20 | 51 |
 | 6 | 23 | 69 |
-| **All** | **182** | **828** |
+| **All** | **187** | **857** |
 
 ### J2. All modules
 
@@ -14054,6 +14523,11 @@ These are the server, AI-service and infrastructure modules (Lane SERVER, AI or 
 | P2-DDEPNAV | Dependency navigation UI | DESKTOP | CODE | 7 | P1-SIGN · P2-CRPC |
 | P2-DBRIDGE | Desktop ↔ VS Code bridge | DESKTOP | CODE | 6 | P2-DDEPS · P2-LOCATE |
 | P2-VSC | VS Code extension | VSCODE | CODE | 5 | P2-DBRIDGE |
+| P2-CMCON | Code Motion contracts | CONTRACTS | CODE | 3 | P1-SIGN |
+| P2-CMREC | Python execution recorder | AGENT | CODE | 6 | P1-SIGN |
+| P2-CMENG | Code Motion engine | ENGINE | CODE | 4 | P2-CMCON |
+| P2-CMHOST | Code Motion recording host | DESKTOP | CODE | 5 | P2-CMREC |
+| P2-CMUI | Code Motion UI (2D and 3D) | DESKTOP | CODE | 10 | P2-CMENG · P2-CMHOST |
 | P2-SBASE | Server base: shared libraries and templates | SERVER | CODE | 6 | P1-SIGN |
 | P2-SDB | Database library and migrations | SERVER | CODE | 4 | P2-SBASE |
 | P2-INFRA | Local infrastructure (Docker Compose) | INFRA | CODE | 4 | P1-SIGN |
@@ -14064,7 +14538,7 @@ These are the server, AI-service and infrastructure modules (Lane SERVER, AI or 
 | P2-SSYNC | Snapshot sync service | SERVER | CODE | 5 | P2-SPROJ |
 | P2-DCLOUD | Desktop cloud features (account, share, open shared) | DESKTOP | CODE | 7 | P2-SSYNC · P2-SNAP · P2-SGW |
 | P2-DIARY | Design diary | DOCS | DOCS | 2 | P1-SIGN |
-| P2-UDOC | User guide for Phase 2 features | DOCS | DOCS | 3 | P2-DCLOUD · P2-VSC · P2-DDEPNAV · P2-DCOMP |
+| P2-UDOC | User guide for Phase 2 features | DOCS | DOCS | 4 | P2-DCLOUD · P2-VSC · P2-DDEPNAV · P2-DCOMP · P2-CMUI |
 | P2-SIGN | Phase 2 review and sign-off | DOCS | DOCS | 2 | P2-UDOC · P2-DIARY · P2-LJS · P2-LJAVA · P2-LGO · P2-DEPS |
 | P3-CRPC | Phase 3 contracts (events and RPC) | CONTRACTS | CODE | 4 | P2-SIGN |
 | P3-RTCORE | Runtime core (ingestion, mapping, windows, traces) | ENGINE | CODE | 6 | P2-SIGN · P3-CRPC |
