@@ -1,0 +1,39 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Windows Debug (Visual Studio 2022)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "dev-unix",
+      "displayName": "Linux/macOS Debug (Ninja)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" },
+      "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "release-unix",
+      "displayName": "Linux/macOS Release (Ninja)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "PV_BUILD_TESTS": "OFF" },
+      "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev", "configurePreset": "dev", "configuration": "Debug" },
+    { "name": "release", "configurePreset": "dev", "configuration": "Release" },
+    { "name": "dev-unix", "configurePreset": "dev-unix" },
+    { "name": "release-unix", "configurePreset": "release-unix" }
+  ],
+  "testPresets": [
+    { "name": "dev", "configurePreset": "dev", "configuration": "Debug", "output": { "outputOnFailure": true } },
+    { "name": "dev-unix", "configurePreset": "dev-unix", "output": { "outputOnFailure": true } }
+  ]
+}
