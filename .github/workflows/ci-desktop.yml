@@ -1,0 +1,32 @@
+name: ci-desktop
+on:
+  push:
+    branches: [main]
+    paths: ['desktop/**', 'contracts/**']
+  pull_request:
+    paths: ['desktop/**', 'contracts/**']
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+      - name: Install
+        working-directory: desktop
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        working-directory: desktop
+        run: pnpm typecheck
+      - name: Lint
+        working-directory: desktop
+        run: pnpm lint
+      - name: Test
+        working-directory: desktop
+        run: pnpm test
