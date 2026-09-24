@@ -1,0 +1,45 @@
+.root {
+  display: grid;
+  height: 100%;
+  grid-template-columns: 280px 1fr 360px;
+  grid-template-rows: 40px 1fr 220px 24px;
+  grid-template-areas:
+    'toolbar toolbar toolbar'
+    'left center right'
+    'bottom bottom bottom'
+    'status status status';
+}
+.noBottom {
+  grid-template-rows: 40px 1fr 24px;
+  grid-template-areas:
+    'toolbar toolbar toolbar'
+    'left center right'
+    'status status status';
+}
+.toolbar {
+  grid-area: toolbar;
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.spacer { flex: 1; }
+.area { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg-panel); }
+.left { grid-area: left; border-right: 1px solid var(--border); }
+.center { grid-area: center; background: var(--bg); }
+.right { grid-area: right; border-left: 1px solid var(--border); }
+.bottom { grid-area: bottom; border-top: 1px solid var(--border); }
+.areaBody { flex: 1; min-height: 0; overflow: hidden; }
+.status {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--fg-muted);
+  font-size: 12px;
+}
