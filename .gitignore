@@ -12,6 +12,8 @@ coverage/
 .pnpm-store/
 # Electron packaging output
 desktop/release/
+desktop/test-results/
+desktop/playwright-report/
 # C++ engine build folders
 engine/build/
 engine/build-*/
