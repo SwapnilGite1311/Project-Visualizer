@@ -1,0 +1,3 @@
+{"id": "calls|function:src/a.py#f|function:src/b.py#g", "kind": "calls",
+ "source_id": "function:src/a.py#f", "target_id": "function:src/b.py#g",
+ "weight": 2, "resolved": true}

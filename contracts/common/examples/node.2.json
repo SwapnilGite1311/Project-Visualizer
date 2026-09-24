@@ -1,0 +1,1 @@
+{"id":"package:src/app","kind":"package","name":"app","qualified_name":"app","file_path":"","language":"","span":{"start_line":0,"start_col":0,"end_line":0,"end_col":0},"level":1,"parent_id":"package:src","metrics":{"loc":0,"complexity":0,"fan_in":0,"fan_out":0},"health":"unknown"}

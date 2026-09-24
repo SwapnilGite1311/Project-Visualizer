@@ -1,0 +1,13 @@
+{
+  "id": "function:src/app/main.py#run",
+  "kind": "function",
+  "name": "run",
+  "qualified_name": "app.main.run",
+  "file_path": "src/app/main.py",
+  "language": "python",
+  "span": {"start_line": 3, "start_col": 0, "end_line": 9, "end_col": 12},
+  "level": 4,
+  "parent_id": "module:src/app/main.py",
+  "metrics": {"loc": 7, "complexity": 2, "fan_in": 1, "fan_out": 3},
+  "health": "unknown"
+}
