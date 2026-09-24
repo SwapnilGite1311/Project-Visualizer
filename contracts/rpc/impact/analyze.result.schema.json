@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/impact/analyze.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "root_id",
+    "affected",
+    "risk"
+  ],
+  "properties": {
+    "root_id": {
+      "type": "string"
+    },
+    "affected": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "distance",
+          "via",
+          "from_id",
+          "ancestor_ids"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "distance": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "via": {
+            "$ref": "../../common/enums.schema.json#/$defs/edge_kind"
+          },
+          "from_id": {
+            "type": "string"
+          },
+          "ancestor_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "score",
+        "level",
+        "factors"
+      ],
+      "properties": {
+        "score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "factors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      }
+    }
+  }
+}

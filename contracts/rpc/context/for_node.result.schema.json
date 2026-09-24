@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/context/for_node.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "node",
+    "source",
+    "source_truncated",
+    "parent",
+    "children",
+    "callers",
+    "callees",
+    "imports",
+    "related_node_ids",
+    "approx_tokens"
+  ],
+  "properties": {
+    "node": {
+      "$ref": "../../common/node.schema.json"
+    },
+    "source": {
+      "type": "string"
+    },
+    "source_truncated": {
+      "type": "boolean"
+    },
+    "parent": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ref"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "children": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ref"
+      }
+    },
+    "callers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ref_file"
+      }
+    },
+    "callees": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ref_file"
+      }
+    },
+    "imports": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ref"
+      }
+    },
+    "related_node_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "approx_tokens": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "$defs": {
+    "ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "../../common/enums.schema.json#/$defs/node_kind"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "ref_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "file_path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "../../common/enums.schema.json#/$defs/node_kind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "file_path": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

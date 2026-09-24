@@ -1,0 +1,11 @@
+{
+  "languages": [
+    {
+      "id": "python",
+      "extensions": [
+        ".py",
+        ".pyi"
+      ]
+    }
+  ]
+}

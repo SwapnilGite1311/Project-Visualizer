@@ -1,0 +1,20 @@
+{
+  "results": [
+    {
+      "node_id": "class:app/services.py#UserService",
+      "name": "UserService",
+      "kind": "class",
+      "file_path": "app/services.py",
+      "qualified_name": "app.services.UserService",
+      "score": 100
+    },
+    {
+      "node_id": "method:app/services.py#UserService.get_user",
+      "name": "get_user",
+      "kind": "method",
+      "file_path": "app/services.py",
+      "qualified_name": "app.services.UserService.get_user",
+      "score": 60
+    }
+  ]
+}

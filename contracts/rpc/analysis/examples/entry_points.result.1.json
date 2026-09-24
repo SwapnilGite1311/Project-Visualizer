@@ -1,0 +1,17 @@
+{
+  "entry_points": [
+    {
+      "node_id": "module:main.py",
+      "reasons": [
+        "has __main__ guard",
+        "conventional entry file name"
+      ]
+    },
+    {
+      "node_id": "function:main.py#main",
+      "reasons": [
+        "function named main"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/analysis/call_tree.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "node_id"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "depth": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 6
+    }
+  }
+}

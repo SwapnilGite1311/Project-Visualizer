@@ -1,0 +1,60 @@
+{
+  "affected": [
+    {
+      "ancestor_ids": [
+        "project:",
+        "package:app",
+        "package:app/api",
+        "module:app/api/routes.py",
+        "function:app/api/routes.py#get_user_route"
+      ],
+      "distance": 1,
+      "from_id": "class:app/services.py#UserService",
+      "node_id": "function:app/api/routes.py#get_user_route",
+      "via": "calls"
+    },
+    {
+      "ancestor_ids": [
+        "project:",
+        "module:main.py",
+        "function:main.py#main"
+      ],
+      "distance": 1,
+      "from_id": "class:app/services.py#UserService",
+      "node_id": "function:main.py#main",
+      "via": "calls"
+    },
+    {
+      "ancestor_ids": [
+        "project:",
+        "package:app",
+        "package:app/api",
+        "module:app/api/routes.py"
+      ],
+      "distance": 1,
+      "from_id": "class:app/services.py#UserService",
+      "node_id": "module:app/api/routes.py",
+      "via": "imports"
+    },
+    {
+      "ancestor_ids": [
+        "project:",
+        "module:main.py"
+      ],
+      "distance": 1,
+      "from_id": "class:app/services.py#UserService",
+      "node_id": "module:main.py",
+      "via": "imports"
+    }
+  ],
+  "risk": {
+    "factors": [
+      "4 direct dependents",
+      "0 indirect dependents",
+      "spans 2 packages"
+    ],
+    "level": "medium",
+    "score": 42
+  },
+  "root_id": "class:app/services.py#UserService"
+}

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/analysis/boundaries.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "packages"
+  ],
+  "properties": {
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "name",
+          "internal_edges",
+          "outgoing_edges",
+          "incoming_edges",
+          "instability"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "internal_edges": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outgoing_edges": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "incoming_edges": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "instability": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    }
+  }
+}

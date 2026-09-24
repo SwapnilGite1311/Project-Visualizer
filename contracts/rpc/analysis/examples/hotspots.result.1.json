@@ -1,0 +1,21 @@
+{
+  "hotspots": [
+    {
+      "node_id": "method:app/services.py#UserService.get_user",
+      "kind": "method",
+      "name": "get_user",
+      "file_path": "app/services.py",
+      "score": 78,
+      "reasons": [
+        "calls 4 other nodes",
+        "complexity 2"
+      ],
+      "metrics": {
+        "loc": 5,
+        "complexity": 2,
+        "fan_in": 1,
+        "fan_out": 4
+      }
+    }
+  ]
+}

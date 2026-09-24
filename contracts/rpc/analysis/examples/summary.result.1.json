@@ -1,0 +1,56 @@
+{
+  "root_path": "C:/code/pyproj_small",
+  "files": 8,
+  "total_loc": 72,
+  "languages": [
+    {
+      "id": "python",
+      "files": 8,
+      "loc": 72
+    }
+  ],
+  "counts": {
+    "project": 1,
+    "package": 2,
+    "module": 8,
+    "class": 3,
+    "function": 5,
+    "method": 5,
+    "variable": 0,
+    "statement": 0,
+    "external": 1
+  },
+  "externals": [
+    "sys"
+  ],
+  "largest_modules": [
+    {
+      "node_id": "module:app/models.py",
+      "name": "models.py",
+      "loc": 17
+    },
+    {
+      "node_id": "module:main.py",
+      "name": "main.py",
+      "loc": 15
+    }
+  ],
+  "largest_packages": [
+    {
+      "node_id": "package:app",
+      "name": "app",
+      "loc": 52,
+      "modules": 6
+    },
+    {
+      "node_id": "package:app/api",
+      "name": "api",
+      "loc": 10,
+      "modules": 2
+    }
+  ],
+  "syntax_error_files": [
+    "broken.py"
+  ],
+  "parse_errors": []
+}

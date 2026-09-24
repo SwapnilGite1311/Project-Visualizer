@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/search/query.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "text"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kinds": {
+      "type": "array",
+      "items": {
+        "$ref": "../../common/enums.schema.json#/$defs/node_kind"
+      }
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    }
+  }
+}

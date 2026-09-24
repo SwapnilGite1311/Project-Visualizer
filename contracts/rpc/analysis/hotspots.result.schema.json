@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/analysis/hotspots.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "hotspots"
+  ],
+  "properties": {
+    "hotspots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "kind",
+          "name",
+          "file_path",
+          "score",
+          "reasons",
+          "metrics"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "../../common/enums.schema.json#/$defs/node_kind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "file_path": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metrics": {
+            "$ref": "../../common/node.schema.json#/properties/metrics"
+          }
+        }
+      }
+    }
+  }
+}

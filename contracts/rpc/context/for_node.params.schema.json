@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/context/for_node.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "node_id"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "max_chars": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 100000
+    }
+  }
+}

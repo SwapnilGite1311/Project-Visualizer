@@ -1,0 +1,20 @@
+{
+  "packages": [
+    {
+      "node_id": "package:app",
+      "name": "app",
+      "internal_edges": 12,
+      "outgoing_edges": 0,
+      "incoming_edges": 2,
+      "instability": 0
+    },
+    {
+      "node_id": "package:app/api",
+      "name": "api",
+      "internal_edges": 0,
+      "outgoing_edges": 4,
+      "incoming_edges": 0,
+      "instability": 1
+    }
+  ]
+}

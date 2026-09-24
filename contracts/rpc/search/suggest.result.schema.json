@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/search/suggest.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "suggestions"
+  ],
+  "properties": {
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

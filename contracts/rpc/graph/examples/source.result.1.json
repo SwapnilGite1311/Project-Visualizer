@@ -1,0 +1,11 @@
+{
+  "file_path": "app/utils.py",
+  "language": "python",
+  "text": "def normalize(name):\n    return name.strip().lower()",
+  "span": {
+    "start_line": 4,
+    "start_col": 0,
+    "end_line": 5,
+    "end_col": 31
+  }
+}

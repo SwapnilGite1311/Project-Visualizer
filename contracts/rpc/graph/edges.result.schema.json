@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/graph/edges.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "edges"
+  ],
+  "properties": {
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "../../common/edge.schema.json"
+      }
+    }
+  }
+}

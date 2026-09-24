@@ -1,0 +1,56 @@
+{
+  "approx_tokens": 247,
+  "callees": [],
+  "callers": [
+    {
+      "file_path": "app/api/routes.py",
+      "id": "function:app/api/routes.py#get_user_route",
+      "kind": "function",
+      "name": "get_user_route"
+    },
+    {
+      "file_path": "app/services.py",
+      "id": "method:app/services.py#UserService.get_user",
+      "kind": "method",
+      "name": "get_user"
+    }
+  ],
+  "children": [],
+  "imports": [],
+  "node": {
+    "file_path": "app/utils.py",
+    "health": "unknown",
+    "id": "function:app/utils.py#is_valid",
+    "kind": "function",
+    "language": "python",
+    "level": 4,
+    "metrics": {
+      "complexity": 2,
+      "fan_in": 3,
+      "fan_out": 0,
+      "loc": 2
+    },
+    "name": "is_valid",
+    "parent_id": "module:app/utils.py",
+    "qualified_name": "app.utils.is_valid",
+    "span": {
+      "end_col": 41,
+      "end_line": 9,
+      "start_col": 0,
+      "start_line": 8
+    }
+  },
+  "parent": {
+    "id": "module:app/utils.py",
+    "kind": "module",
+    "name": "utils.py"
+  },
+  "related_node_ids": [
+    "function:app/api/routes.py#get_user_route",
+    "function:app/utils.py#is_valid",
+    "method:app/services.py#UserService.get_user",
+    "module:app/utils.py"
+  ],
+  "source": "def is_valid(user_id):\n    return user_id > 0 and user_id < 1000",
+  "source_truncated": false
+}

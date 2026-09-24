@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/graph/source.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "file_path",
+    "language",
+    "text",
+    "span"
+  ],
+  "properties": {
+    "file_path": {
+      "type": "string"
+    },
+    "language": {
+      "type": "string"
+    },
+    "text": {
+      "type": "string"
+    },
+    "span": {
+      "$ref": "../../common/span.schema.json"
+    }
+  }
+}
