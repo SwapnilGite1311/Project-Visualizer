@@ -1,0 +1,24 @@
+name: ci-contracts
+on:
+  push:
+    branches: [main]
+    paths: ['contracts/**']
+  pull_request:
+    paths: ['contracts/**']
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        working-directory: contracts
+        run: pnpm install --frozen-lockfile
+      - name: Validate
+        working-directory: contracts
+        run: pnpm validate
