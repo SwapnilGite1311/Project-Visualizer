@@ -93,4 +93,33 @@ std::string path_join(const std::string& a, const std::string& b) {
     return normalize_path(a + "/" + b);
 }
 
+namespace {
+
+bool same_text(const std::string& a, const std::string& b) {
+#ifdef _WIN32
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
+            return false;
+        }
+    }
+    return true;
+#else
+    return a == b;
+#endif
+}
+
+}  // namespace
+
+std::optional<std::string> path_relative_to(const std::string& root, const std::string& path) {
+    const std::string r = normalize_path(root);
+    const std::string p = normalize_path(path);
+    if (same_text(r, p)) return std::string();
+    const std::string prefix = (!r.empty() && r.back() == '/') ? r : r + "/";
+    if (p.size() > prefix.size() && same_text(p.substr(0, prefix.size()), prefix)) {
+        return p.substr(prefix.size());
+    }
+    return std::nullopt;
+}
+
 }  // namespace pv::core

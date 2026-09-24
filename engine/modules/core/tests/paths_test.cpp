@@ -29,6 +29,21 @@ TEST(CorePaths, Parts) {
     EXPECT_EQ(path_extension(".env"), "");
 }
 
+TEST(CorePaths, RelativeTo) {
+    EXPECT_EQ(path_relative_to("C:/code/proj", "C:/code/proj/src/a.py"), "src/a.py");
+    EXPECT_EQ(path_relative_to("/home/u/p", "/home/u/p"), "");
+    EXPECT_FALSE(path_relative_to("/home/u/p", "/home/u/px/a.py").has_value());
+    EXPECT_FALSE(path_relative_to("/home/u/p", "/home/u/other/a.py").has_value());
+    EXPECT_EQ(path_relative_to("C:\\code\\proj", "C:\\code\\proj\\x.py"), "x.py");
+    EXPECT_EQ(path_relative_to("C:/", "C:/x/y"), "x/y");
+}
+
+#ifdef _WIN32
+TEST(CorePaths, RelativeToIgnoresCaseOnWindows) {
+    EXPECT_EQ(path_relative_to("C:/Code/Proj", "c:/code/proj/A.py"), "A.py");
+}
+#endif
+
 TEST(CorePaths, Join) {
     EXPECT_EQ(path_join("", "x.py"), "x.py");
     EXPECT_EQ(path_join("C:/code", "src/a.py"), "C:/code/src/a.py");
