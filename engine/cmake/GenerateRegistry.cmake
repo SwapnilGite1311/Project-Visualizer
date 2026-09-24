@@ -1,0 +1,17 @@
+# pv_generate_registry(<output .cpp path>)
+# Finds every engine/modules/<m>/src/register.cpp and generates a .cpp file that
+# declares and calls pv_register_<m>(reg) for each module, in alphabetical order.
+function(pv_generate_registry out_file)
+  file(GLOB reg_files CONFIGURE_DEPENDS ${PV_ENGINE_ROOT}/modules/*/src/register.cpp)
+  list(SORT reg_files)
+  set(PV_REGISTER_DECLS "")
+  set(PV_REGISTER_CALLS "")
+  foreach(f ${reg_files})
+    get_filename_component(src_dir ${f} DIRECTORY)
+    get_filename_component(mod_dir ${src_dir} DIRECTORY)
+    get_filename_component(mod ${mod_dir} NAME)
+    string(APPEND PV_REGISTER_DECLS "void pv_register_${mod}(pv::session::Registry& reg);\n")
+    string(APPEND PV_REGISTER_CALLS "    pv_register_${mod}(reg);\n")
+  endforeach()
+  configure_file(${PV_ENGINE_ROOT}/cmake/registry_gen.cpp.in ${out_file} @ONLY)
+endfunction()

@@ -1,0 +1,9 @@
+// GENERATED FILE - do not edit. Produced by engine/cmake/GenerateRegistry.cmake.
+#include "pv/session/registry.hpp"
+
+@PV_REGISTER_DECLS@
+namespace pv::app {
+void register_all_modules(pv::session::Registry& reg) {
+    (void)reg;
+@PV_REGISTER_CALLS@}
+}  // namespace pv::app
