@@ -1,0 +1,22 @@
+name: ci-ai
+on:
+  push:
+    branches: [main]
+    paths: ['ai/**', 'contracts/prompts/**']
+  pull_request:
+    paths: ['ai/**', 'contracts/prompts/**']
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Sync
+        working-directory: ai
+        run: uv sync
+      - name: Lint
+        working-directory: ai
+        run: uv run ruff check .
+      - name: Test
+        working-directory: ai
+        run: uv run pytest -q
