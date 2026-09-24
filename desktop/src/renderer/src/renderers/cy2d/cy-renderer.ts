@@ -5,6 +5,18 @@ import type { GraphRenderer, RendererEvent, RendererEventPayload } from '../../v
 import { toElements } from './cy-elements';
 import { buildStylesheet } from './cy-style';
 
+// Fitting a small level (1-3 nodes) would zoom to maxZoom, where nodes and labels become huge.
+// Fit, then never stay above this zoom.
+export const MAX_FIT_ZOOM = 1.5;
+
+export function fitCapped(cy: Core): void {
+  cy.fit(undefined, 40);
+  if (cy.zoom() > MAX_FIT_ZOOM) {
+    cy.zoom(MAX_FIT_ZOOM);
+    cy.center();
+  }
+}
+
 let dagreRegistered = false;
 function ensureDagre(): void {
   if (dagreRegistered) return;
@@ -63,7 +75,7 @@ export class CyRenderer implements GraphRenderer {
           ? { name: 'cose', animate: false }
           : { name: 'grid' };
     cy.layout(layout).run();
-    cy.fit(undefined, 40);
+    fitCapped(cy);
     this.syncAnimation();
   }
 
@@ -94,7 +106,7 @@ export class CyRenderer implements GraphRenderer {
   }
 
   fit(): void {
-    this.cy?.fit(undefined, 40);
+    if (this.cy) fitCapped(this.cy);
   }
 
   on(event: RendererEvent, cb: (p: RendererEventPayload) => void): () => void {

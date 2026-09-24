@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildViewGraph } from '../../view/model';
 import { gedge, gnode, levelView } from '../../view/test-data';
-import { CyRenderer } from './cy-renderer';
+import cytoscape from 'cytoscape';
+import { CyRenderer, fitCapped, MAX_FIT_ZOOM } from './cy-renderer';
 
 function graph(overlays = {}) {
   return buildViewGraph(
@@ -56,5 +57,15 @@ describe('CyRenderer (headless)', () => {
     r.core!.$id('a').emit('tap');
     expect(onClick).toHaveBeenCalledTimes(1);
     r.destroy();
+  });
+});
+
+describe('fitCapped', () => {
+  it('never leaves the view above the maximum fit zoom', () => {
+    const cy = cytoscape({ headless: true, elements: [{ data: { id: 'solo' } }] });
+    cy.fit = () => cy.zoom(3) as unknown as typeof cy;
+    fitCapped(cy);
+    expect(cy.zoom()).toBe(MAX_FIT_ZOOM);
+    cy.destroy();
   });
 });
