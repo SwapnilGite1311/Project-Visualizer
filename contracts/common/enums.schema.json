@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/common/enums.schema.json",
+  "title": "Shared enums",
+  "$defs": {
+    "node_kind": {
+      "type": "string",
+      "enum": ["project", "package", "module", "class", "function", "method", "variable", "statement", "external"]
+    },
+    "edge_kind": { "type": "string", "enum": ["imports", "calls", "inherits", "references"] },
+    "health": { "type": "string", "enum": ["unknown", "ok", "warning", "stalled", "error"] },
+    "project_state": { "type": "string", "enum": ["idle", "scanning", "parsing", "linking", "ready", "error"] },
+    "direction": { "type": "string", "enum": ["in", "out", "both"] }
+  }
+}
