@@ -15,3 +15,10 @@
 | nlohmann/json | v3.11.3 | pinned in engine/third_party |
 | GoogleTest | v1.15.2 | pinned in engine/third_party |
 | Docker | from Phase 2 | 29.7.2 |
+
+## Version changes
+
+| Date | Tool | Plan said | Chosen | Reason |
+| --- | --- | --- | --- | --- |
+| 2026-09-24 | vite (desktop) | latest | 7.x | electron-vite 5 only supports vite ^5, ^6 or ^7; vite 8 broke typecheck against vitest 3 |
+| 2026-09-24 | @vitejs/plugin-react (desktop) | latest | 5.x | the 6.x line requires vite 8 |
