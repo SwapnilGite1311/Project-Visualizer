@@ -1,0 +1,8 @@
+node_modules
+dist
+out
+coverage
+engine/build
+desktop/release
+docs/plan/PROJECT_VISUALIZER_BUILD_PLAN.md
+pnpm-lock.yaml
