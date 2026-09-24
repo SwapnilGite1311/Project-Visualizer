@@ -1,0 +1,36 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+# Node / TypeScript
+node_modules/
+dist/
+out/
+coverage/
+*.tsbuildinfo
+.pnpm-store/
+# Electron packaging output
+desktop/release/
+# C++ engine build folders
+engine/build/
+engine/build-*/
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+server/.keys/
+*.pem
+# Project Visualizer local data folders
+.pv/
+# Logs
+*.log
+# VS Code extension packages
+vscode-extension/*.vsix
