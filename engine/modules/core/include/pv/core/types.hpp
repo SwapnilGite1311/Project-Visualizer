@@ -45,4 +45,11 @@ struct Edge {
     bool resolved = true;
 };
 
+std::string to_string(NodeKind kind);
+std::string to_string(EdgeKind kind);
+std::string to_string(Health health);
+std::optional<NodeKind> node_kind_from_string(const std::string& text);
+std::optional<EdgeKind> edge_kind_from_string(const std::string& text);
+std::optional<Health> health_from_string(const std::string& text);
+
 }  // namespace pv::core
