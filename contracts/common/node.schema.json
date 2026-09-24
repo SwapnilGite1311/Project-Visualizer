@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/common/node.schema.json",
+  "title": "Node",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "kind", "name", "qualified_name", "file_path", "language", "span", "level", "parent_id", "metrics", "health"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "kind": { "$ref": "enums.schema.json#/$defs/node_kind" },
+    "name": { "type": "string" },
+    "qualified_name": { "type": "string" },
+    "file_path": { "type": "string" },
+    "language": { "type": "string" },
+    "span": { "$ref": "span.schema.json" },
+    "level": { "type": "integer", "minimum": 0, "maximum": 5 },
+    "parent_id": { "type": "string" },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["loc", "complexity", "fan_in", "fan_out"],
+      "properties": {
+        "loc": { "type": "integer", "minimum": 0 },
+        "complexity": { "type": "integer", "minimum": 0 },
+        "fan_in": { "type": "integer", "minimum": 0 },
+        "fan_out": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "health": { "$ref": "enums.schema.json#/$defs/health" }
+  }
+}
