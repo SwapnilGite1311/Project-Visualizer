@@ -26,7 +26,8 @@ class ErrorStore {
 public:
     std::string add_pasted(const std::string& project_id, const ParsedTrace& trace, int64_t now_ms);
     // Same type, message and element as an existing runtime error → that record's count grows.
-    std::string add_runtime(const std::string& project_id, const runtime::MappedEvent& event, std::vector<Frame> frames, int64_t now_ms);
+    std::string add_runtime(const std::string& project_id, const runtime::MappedEvent& event, std::vector<Frame> frames, int64_t now_ms,
+                            const std::string& language = "unknown");
     std::vector<ErrorRecord> list(const std::string& project_id) const;  // most recent first
     std::optional<ErrorRecord> get(const std::string& project_id, const std::string& error_id) const;
     void clear(const std::string& project_id, const std::string& error_id = "");

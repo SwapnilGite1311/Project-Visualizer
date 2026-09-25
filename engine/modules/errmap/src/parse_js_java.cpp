@@ -8,7 +8,7 @@ namespace pv::errmap {
 std::optional<ParsedTrace> parse_javascript(const std::string& text) {
     const auto lines = split_lines(text);
     static const std::regex kHead(R"(^(\w*Error|Error)(?:: (.*))?$)");
-    static const std::regex kFrame(R"(^\s*at (?:(.+?) \()?(.+?):(\d+):(\d+)\)?$)");
+    static const std::regex kFrame(R"(^\s*at (?:async )?(?:(.+?) \()?(.+?):(\d+):(\d+)\)?$)");
     std::smatch head;
     const std::string first = first_non_empty_line(lines);
     if (!std::regex_match(first, head, kHead)) return std::nullopt;

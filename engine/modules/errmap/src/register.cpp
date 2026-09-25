@@ -24,6 +24,7 @@ void pv_register_errmap(pv::session::Registry& reg) {
         for (const auto& m : batch) {
             if (!pv::runtime::is_error_event(m.ev)) continue;
             std::vector<pv::errmap::Frame> frames;
+            std::string language = "unknown";
             if (m.ev.error && !m.ev.error->stack.empty()) {
                 if (!project) {
                     try {
@@ -38,8 +39,9 @@ void pv_register_errmap(pv::session::Registry& reg) {
                     return 0;
                 });
                 frames = parsed.frames;
+                language = parsed.language;
             }
-            pv::errmap::store().add_runtime(project_id, m, std::move(frames), wall_ms());
+            pv::errmap::store().add_runtime(project_id, m, std::move(frames), wall_ms(), language);
         }
     });
 

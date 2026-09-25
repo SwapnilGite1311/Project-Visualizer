@@ -46,7 +46,7 @@ std::string ErrorStore::add_pasted(const std::string& project_id, const ParsedTr
 }
 
 std::string ErrorStore::add_runtime(const std::string& project_id, const runtime::MappedEvent& event, std::vector<Frame> frames,
-                                    int64_t now_ms) {
+                                    int64_t now_ms, const std::string& language) {
     const std::string type = event.ev.error ? event.ev.error->type : "Error";
     const std::string message = event.ev.error ? event.ev.error->message : event.ev.name;
     std::lock_guard lock(mutex_);
@@ -54,13 +54,17 @@ std::string ErrorStore::add_runtime(const std::string& project_id, const runtime
         if (r.source == "runtime" && r.error_type == type && r.message == message && r.origin_node_id == event.node_id) {
             ++r.count;
             r.last_seen_ms = now_ms;
+            if (r.language == "unknown" && language != "unknown" && !frames.empty()) {  // first seen without a readable stack
+                r.language = language;
+                r.frames = std::move(frames);
+            }
             return r.error_id;
         }
     }
     ErrorRecord r;
     r.error_id = next_id();
     r.source = "runtime";
-    r.language = "unknown";
+    r.language = frames.empty() ? "unknown" : language;
     r.error_type = type;
     r.message = message;
     r.first_seen_ms = r.last_seen_ms = now_ms;

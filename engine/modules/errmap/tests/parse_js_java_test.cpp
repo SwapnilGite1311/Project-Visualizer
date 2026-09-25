@@ -18,6 +18,21 @@ TEST(ErrmapJsJava, NodeStacks) {
     EXPECT_FALSE(errmap::parse_javascript("TypeError: no frames").has_value());
 }
 
+// ES modules print file URLs; async functions print "at async".
+TEST(ErrmapJsJava, NodeEsmStacks) {
+    const auto t = errmap::parse_javascript(
+        "TypeError: Cannot read properties of undefined (reading 'id')\n"
+        "    at file:///C:/Users/Jane%20Doe/shop/src/cart.js:13:18\n"
+        "    at async checkout (file:///C:/Users/Jane%20Doe/shop/src/app.js:6:3)\n"
+        "    at async node:internal/modules/esm/loader:639:26\n");
+    ASSERT_TRUE(t.has_value());
+    ASSERT_EQ(t->frames.size(), 2u);
+    EXPECT_EQ(t->frames[0].file_path, "file:///C:/Users/Jane%20Doe/shop/src/cart.js");
+    EXPECT_EQ(t->frames[0].line, 13);
+    EXPECT_EQ(t->frames[1].function, "checkout");
+    EXPECT_EQ(t->frames[1].line, 6);
+}
+
 TEST(ErrmapJsJava, JavaStacks) {
     const auto t = errmap::parse_java(errmap::testing::kJava);
     ASSERT_TRUE(t.has_value());

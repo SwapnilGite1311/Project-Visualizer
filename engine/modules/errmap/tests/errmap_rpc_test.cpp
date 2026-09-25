@@ -46,7 +46,8 @@ TEST(ErrmapRpc, PastedAndRuntimeErrors) {
     }
     EXPECT_EQ(runtime_record["count"], 3);
     EXPECT_EQ(runtime_record["origin_node_id"], "function:app/utils.py#is_valid");
-    EXPECT_EQ(runtime_record["frames"].size(), 1u);
+    EXPECT_EQ(runtime_record["language"], "python");  // first seen without a stack, upgraded by the one with a stack
+    EXPECT_EQ(runtime_record["frames"].size(), 3u);
 
     env.call("errors.clear", Json{{"project_id", pid}, {"error_id", mapped["error_id"]}});
     EXPECT_EQ(env.call("errors.list", Json{{"project_id", pid}})["errors"].size(), 1u);
