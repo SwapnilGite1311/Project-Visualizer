@@ -29,6 +29,6 @@ linux:
       to: engine/pv-engine
 publish:
   provider: github
-  owner: REPLACE_WITH_GITHUB_OWNER
-  repo: project-visualizer
+  owner: SwapnilGite1311
+  repo: Project-Visualizer
   releaseType: release
