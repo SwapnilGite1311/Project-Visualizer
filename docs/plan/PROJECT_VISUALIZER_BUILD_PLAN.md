@@ -12078,7 +12078,7 @@ inherits.scm:
 **Why:** PHP support as data.
 **Steps:**
 1. `source.txt`: `repo=https://github.com/tree-sitter/tree-sitter-php`, `tag=v0.23.11`, `subdir=php`, `lib_name=php`.
-2. `language.json`: id `php`, extensions `[".php"]`, symbol `tree_sitter_php`, naming `directory`, resolution `suffix`, self `this`, decision types `["if_statement","for_statement","foreach_statement","while_statement","catch_clause","conditional_expression","case_statement"]`.
+2. `language.json`: id `php`, extensions `[".php"]`, symbol `tree_sitter_php`, naming `directory`, resolution `suffix`, self `$this` (PHP writes the object as `$this`, so calls on it only resolve with that text), decision types `["if_statement","for_statement","foreach_statement","while_statement","catch_clause","conditional_expression","case_statement"]`.
 3. Queries:
 ```text
 definitions.scm:
@@ -12125,7 +12125,9 @@ calls.scm:
 
 inherits.scm:
 (class_declaration (type_identifier) @inherit.class (delegation_specifier (user_type (type_identifier) @inherit.base)))
+(class_declaration (type_identifier) @inherit.class (delegation_specifier (constructor_invocation (user_type (type_identifier) @inherit.base))))
 ```
+(The second pattern covers `class A : B()`, where the grammar wraps the supertype in a constructor call.)
 4. If the build script reports a query error, fix only the `.scm` text using the grammar's `src/node-types.json`.
 **Verify:** the build script succeeds for Kotlin.
 
