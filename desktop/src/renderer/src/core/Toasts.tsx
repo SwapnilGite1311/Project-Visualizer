@@ -1,10 +1,6 @@
 import { useToasts } from './notify';
 
-const BORDER = {
-  info: 'var(--accent)',
-  success: 'var(--success)',
-  error: 'var(--danger)',
-} as const;
+const BORDER = { info: 'var(--accent)', success: 'var(--success)', error: 'var(--danger)' } as const;
 
 export function Toasts() {
   const items = useToasts((s) => s.items);
@@ -12,15 +8,7 @@ export function Toasts() {
   return (
     <div
       aria-live="polite"
-      style={{
-        position: 'fixed',
-        right: 16,
-        bottom: 32,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-        zIndex: 1000,
-      }}
+      style={{ position: 'fixed', right: 16, bottom: 32, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 1000 }}
     >
       {items.map((t) => (
         <div
@@ -46,12 +34,7 @@ export function Toasts() {
           <button
             aria-label="Dismiss"
             onClick={() => dismiss(t.id)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--fg-muted)',
-              cursor: 'pointer',
-            }}
+            style={{ background: 'none', border: 'none', color: 'var(--fg-muted)', cursor: 'pointer' }}
           >
             ×
           </button>

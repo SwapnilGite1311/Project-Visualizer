@@ -2,10 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { installShortcuts, matches, parseShortcut } from './shortcuts';
 
-const key = (
-  k: string,
-  mods: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }> = {},
-) => ({
+const key = (k: string, mods: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }> = {}) => ({
   ctrlKey: false,
   metaKey: false,
   shiftKey: false,
@@ -16,24 +13,9 @@ const key = (
 
 describe('shortcuts', () => {
   it('parses shortcut text', () => {
-    expect(parseShortcut('Ctrl+Shift+F')).toEqual({
-      ctrl: true,
-      shift: true,
-      alt: false,
-      key: 'f',
-    });
-    expect(parseShortcut('Alt+ArrowLeft')).toEqual({
-      ctrl: false,
-      shift: false,
-      alt: true,
-      key: 'arrowleft',
-    });
-    expect(parseShortcut('Escape')).toEqual({
-      ctrl: false,
-      shift: false,
-      alt: false,
-      key: 'escape',
-    });
+    expect(parseShortcut('Ctrl+Shift+F')).toEqual({ ctrl: true, shift: true, alt: false, key: 'f' });
+    expect(parseShortcut('Alt+ArrowLeft')).toEqual({ ctrl: false, shift: false, alt: true, key: 'arrowleft' });
+    expect(parseShortcut('Escape')).toEqual({ ctrl: false, shift: false, alt: false, key: 'escape' });
     expect(parseShortcut('Cmd+K').ctrl).toBe(true);
   });
 
@@ -47,9 +29,7 @@ describe('shortcuts', () => {
 
   it('runs the matching command on keydown', () => {
     const run = vi.fn();
-    const uninstall = installShortcuts(() => [
-      { id: 'up', title: 'Up', shortcut: 'Alt+ArrowUp', run },
-    ]);
+    const uninstall = installShortcuts(() => [{ id: 'up', title: 'Up', shortcut: 'Alt+ArrowUp', run }]);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true }));
     expect(run).toHaveBeenCalledTimes(1);
     uninstall();

@@ -1,12 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
-interface ErrorBoundaryProps {
-  name: string;
-  children: ReactNode;
-}
-interface ErrorBoundaryState {
-  error: Error | null;
-}
+interface ErrorBoundaryProps { name: string; children: ReactNode }
+interface ErrorBoundaryState { error: Error | null }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { error: null };
@@ -24,9 +19,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return (
       <div role="alert" style={{ padding: 12 }}>
         <div style={{ fontWeight: 600 }}>{this.props.name} failed to load.</div>
-        <div style={{ color: 'var(--fg-muted)', margin: '4px 0 8px' }}>
-          {this.state.error.message}
-        </div>
+        <div style={{ color: 'var(--fg-muted)', margin: '4px 0 8px' }}>{this.state.error.message}</div>
         <button onClick={() => this.setState({ error: null })}>Retry</button>
       </div>
     );

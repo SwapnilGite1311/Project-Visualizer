@@ -1,12 +1,7 @@
 import { create } from 'zustand';
 
 export type ToastKind = 'info' | 'success' | 'error';
-export interface Toast {
-  id: number;
-  kind: ToastKind;
-  title: string;
-  detail?: string;
-}
+export interface Toast { id: number; kind: ToastKind; title: string; detail?: string }
 
 interface ToastState {
   items: Toast[];

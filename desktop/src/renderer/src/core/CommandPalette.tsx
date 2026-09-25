@@ -2,11 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { type CommandDef, appRegistry } from './registry';
 
-export interface CommandPaletteProps {
-  open: boolean;
-  onClose(): void;
-  commands: CommandDef[];
-}
+export interface CommandPaletteProps { open: boolean; onClose(): void; commands: CommandDef[] }
 
 export function CommandPalette({ open, onClose, commands }: CommandPaletteProps) {
   const [text, setText] = useState('');
@@ -83,9 +79,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
             {c.shortcut && <span style={{ color: 'var(--fg-muted)' }}>{c.shortcut}</span>}
           </li>
         ))}
-        {filtered.length === 0 && (
-          <li style={{ color: 'var(--fg-muted)', padding: '6px 8px' }}>No matching commands</li>
-        )}
+        {filtered.length === 0 && <li style={{ color: 'var(--fg-muted)', padding: '6px 8px' }}>No matching commands</li>}
       </ul>
     </Modal>
   );
@@ -103,11 +97,5 @@ export function CommandPaletteHost() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-  return (
-    <CommandPalette
-      open={open}
-      onClose={() => setOpen(false)}
-      commands={open ? appRegistry.commands() : []}
-    />
-  );
+  return <CommandPalette open={open} onClose={() => setOpen(false)} commands={open ? appRegistry.commands() : []} />;
 }
