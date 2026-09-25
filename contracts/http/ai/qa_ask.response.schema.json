@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/http/ai/qa_ask.response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "answer_markdown",
+    "cited_nodes",
+    "highlight_node_ids",
+    "need_more",
+    "usage"
+  ],
+  "properties": {
+    "answer_markdown": {
+      "type": "string"
+    },
+    "cited_nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "explain_node.response.schema.json#/$defs/cited"
+      }
+    },
+    "highlight_node_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "need_more": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5
+    },
+    "usage": {
+      "$ref": "explain_node.response.schema.json#/$defs/usage"
+    }
+  }
+}

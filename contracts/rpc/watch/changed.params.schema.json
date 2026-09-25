@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/watch/changed.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "files_changed",
+    "nodes_added",
+    "nodes_removed",
+    "nodes_updated"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "files_changed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "nodes_added": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "nodes_removed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "nodes_updated": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/change/preview.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "change",
+    "affected",
+    "risk",
+    "breakdown"
+  ],
+  "properties": {
+    "change": {
+      "$ref": "preview.params.schema.json#/$defs/change"
+    },
+    "affected": {
+      "$ref": "../impact/analyze.result.schema.json#/properties/affected"
+    },
+    "risk": {
+      "$ref": "../impact/analyze.result.schema.json#/properties/risk"
+    },
+    "breakdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "static_score",
+        "type_multiplier",
+        "runtime_bonus"
+      ],
+      "properties": {
+        "static_score": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "type_multiplier": {
+          "type": "number",
+          "minimum": 0
+        },
+        "runtime_bonus": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

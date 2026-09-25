@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/http/ai/explain_node.response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "markdown",
+    "cited_nodes",
+    "usage"
+  ],
+  "properties": {
+    "markdown": {
+      "type": "string"
+    },
+    "cited_nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/cited"
+      }
+    },
+    "usage": {
+      "$ref": "#/$defs/usage"
+    }
+  },
+  "$defs": {
+    "cited": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "input_tokens",
+        "output_tokens"
+      ],
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

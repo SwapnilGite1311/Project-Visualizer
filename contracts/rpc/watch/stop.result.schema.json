@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/watch/stop.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "watching",
+    "interval_ms",
+    "seeded",
+    "last_change_ms"
+  ],
+  "properties": {
+    "watching": {
+      "type": "boolean"
+    },
+    "interval_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "seeded": {
+      "type": "boolean"
+    },
+    "last_change_ms": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

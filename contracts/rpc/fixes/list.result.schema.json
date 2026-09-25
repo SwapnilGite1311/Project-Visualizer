@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/fixes/list.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "items"
+  ],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/item"
+      }
+    }
+  },
+  "$defs": {
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "error_id",
+        "node_id",
+        "file_path",
+        "state",
+        "changed_at_ms",
+        "ok_calls"
+      ],
+      "properties": {
+        "error_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "file_path": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "open",
+            "fix_pending",
+            "verified",
+            "regressed"
+          ]
+        },
+        "changed_at_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ok_calls": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

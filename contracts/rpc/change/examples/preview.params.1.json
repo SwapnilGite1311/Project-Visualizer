@@ -1,0 +1,8 @@
+{
+  "project_id": "p1",
+  "change": {
+    "kind": "rename",
+    "node_id": "function:app/utils.py#is_valid",
+    "new_name": "is_valid_id"
+  }
+}

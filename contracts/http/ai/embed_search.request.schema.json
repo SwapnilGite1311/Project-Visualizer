@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/http/ai/embed_search.request.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_key",
+    "query",
+    "k"
+  ],
+  "properties": {
+    "project_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "query": {
+      "type": "string",
+      "minLength": 1
+    },
+    "k": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50
+    }
+  }
+}

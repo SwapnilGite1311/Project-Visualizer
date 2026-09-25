@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/grounding/for_question.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "question",
+    "terms",
+    "digest",
+    "matches",
+    "related_node_ids",
+    "approx_tokens"
+  ],
+  "properties": {
+    "kind": {
+      "const": "question"
+    },
+    "question": {
+      "type": "string"
+    },
+    "terms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "digest": {
+      "type": "string"
+    },
+    "matches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "score",
+          "pack"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "score": {
+            "type": "number"
+          },
+          "pack": {
+            "$ref": "../context/for_node.result.schema.json"
+          }
+        }
+      }
+    },
+    "related_node_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "approx_tokens": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

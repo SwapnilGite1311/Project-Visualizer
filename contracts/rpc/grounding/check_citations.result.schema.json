@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/grounding/check_citations.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "valid",
+    "invalid"
+  ],
+  "properties": {
+    "valid": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "invalid": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/http/ai/explain_error.response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "likely_cause",
+    "fix_steps",
+    "markdown",
+    "cited_nodes",
+    "confidence",
+    "usage"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string"
+    },
+    "likely_cause": {
+      "type": "string"
+    },
+    "fix_steps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "maxItems": 4
+    },
+    "markdown": {
+      "type": "string"
+    },
+    "cited_nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "explain_node.response.schema.json#/$defs/cited"
+      }
+    },
+    "confidence": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "usage": {
+      "$ref": "explain_node.response.schema.json#/$defs/usage"
+    }
+  }
+}

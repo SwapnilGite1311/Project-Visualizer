@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/grounding/for_error.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "error",
+    "origin",
+    "frames",
+    "health",
+    "related_node_ids",
+    "approx_tokens"
+  ],
+  "properties": {
+    "kind": {
+      "const": "error"
+    },
+    "error": {
+      "$ref": "../errors/list.result.schema.json#/properties/errors/items"
+    },
+    "origin": {
+      "anyOf": [
+        {
+          "$ref": "../context/for_node.result.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "frames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "frame",
+          "snippet"
+        ],
+        "properties": {
+          "frame": {
+            "$ref": "../errors/map_stack.result.schema.json#/$defs/frame"
+          },
+          "snippet": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "file_path",
+                  "start_line",
+                  "end_line",
+                  "text"
+                ],
+                "properties": {
+                  "file_path": {
+                    "type": "string"
+                  },
+                  "start_line": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "end_line": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "health": {
+      "type": "object"
+    },
+    "related_node_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "approx_tokens": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

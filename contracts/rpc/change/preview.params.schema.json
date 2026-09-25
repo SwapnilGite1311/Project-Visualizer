@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/change/preview.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "change"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "change": {
+      "$ref": "#/$defs/change"
+    }
+  },
+  "$defs": {
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "node_id"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "modify_body",
+            "change_signature",
+            "rename",
+            "delete",
+            "move"
+          ]
+        },
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "new_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "new_parent_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
