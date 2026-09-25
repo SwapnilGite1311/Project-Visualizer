@@ -17,7 +17,38 @@
       "$ref": "../impact/analyze.result.schema.json#/properties/affected"
     },
     "risk": {
-      "$ref": "../impact/analyze.result.schema.json#/properties/risk"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "score",
+        "level",
+        "factors"
+      ],
+      "properties": {
+        "score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "factors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 3,
+          "maxItems": 6,
+          "description": "impact.analyze's 3 factors, then the change type, recent runs and unhealthy parts when they apply"
+        }
+      }
     },
     "breakdown": {
       "type": "object",
