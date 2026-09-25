@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/deps/path.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "found",
+    "node_ids",
+    "edge_ids"
+  ],
+  "properties": {
+    "found": {
+      "type": "boolean"
+    },
+    "node_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "edge_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

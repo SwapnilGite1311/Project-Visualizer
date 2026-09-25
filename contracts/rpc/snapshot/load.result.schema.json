@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/snapshot/load.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string"
+    }
+  }
+}

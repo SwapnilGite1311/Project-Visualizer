@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/locate/node_at.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "file_path",
+    "line"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "file_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "line": {
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

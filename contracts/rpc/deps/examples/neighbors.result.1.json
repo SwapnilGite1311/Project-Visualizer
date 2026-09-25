@@ -1,0 +1,46 @@
+{
+  "root_id": "function:main.py#main",
+  "items": [
+    {
+      "node_id": "class:app/services.py#UserService",
+      "distance": 1,
+      "direction": "out",
+      "ancestor_ids": [
+        "project:",
+        "package:app",
+        "module:app/services.py",
+        "class:app/services.py#UserService"
+      ]
+    },
+    {
+      "node_id": "method:app/services.py#UserService.get_user",
+      "distance": 1,
+      "direction": "out",
+      "ancestor_ids": [
+        "project:",
+        "package:app",
+        "module:app/services.py",
+        "class:app/services.py#UserService",
+        "method:app/services.py#UserService.get_user"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "calls|function:main.py#main|class:app/services.py#UserService",
+      "kind": "calls",
+      "source_id": "function:main.py#main",
+      "target_id": "class:app/services.py#UserService",
+      "weight": 1,
+      "resolved": true
+    },
+    {
+      "id": "calls|function:main.py#main|method:app/services.py#UserService.get_user",
+      "kind": "calls",
+      "source_id": "function:main.py#main",
+      "target_id": "method:app/services.py#UserService.get_user",
+      "weight": 1,
+      "resolved": true
+    }
+  ]
+}

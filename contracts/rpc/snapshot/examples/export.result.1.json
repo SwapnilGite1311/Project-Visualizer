@@ -1,0 +1,54 @@
+{
+  "format": "pv-snapshot-1",
+  "engine_version": "0.1.0",
+  "label": "demo",
+  "nodes": [
+    {
+      "id": "project:",
+      "kind": "project",
+      "name": "demo",
+      "qualified_name": "demo",
+      "file_path": "",
+      "language": "",
+      "span": {
+        "start_line": 1,
+        "start_col": 0,
+        "end_line": 1,
+        "end_col": 0
+      },
+      "level": 0,
+      "parent_id": "",
+      "metrics": {
+        "loc": 1,
+        "complexity": 1,
+        "fan_in": 0,
+        "fan_out": 0
+      },
+      "health": "unknown"
+    },
+    {
+      "id": "module:main.py",
+      "kind": "module",
+      "name": "main",
+      "qualified_name": "main",
+      "file_path": "main.py",
+      "language": "python",
+      "span": {
+        "start_line": 1,
+        "start_col": 0,
+        "end_line": 15,
+        "end_col": 0
+      },
+      "level": 2,
+      "parent_id": "project:",
+      "metrics": {
+        "loc": 15,
+        "complexity": 1,
+        "fan_in": 0,
+        "fan_out": 0
+      },
+      "health": "unknown"
+    }
+  ],
+  "edges": []
+}

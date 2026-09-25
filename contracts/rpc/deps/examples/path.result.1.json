@@ -1,0 +1,10 @@
+{
+  "found": true,
+  "node_ids": [
+    "function:main.py#main",
+    "method:app/services.py#UserService.get_user"
+  ],
+  "edge_ids": [
+    "calls|function:main.py#main|method:app/services.py#UserService.get_user"
+  ]
+}

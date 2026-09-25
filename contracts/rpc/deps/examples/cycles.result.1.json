@@ -1,0 +1,11 @@
+{
+  "cycles": [
+    {
+      "node_ids": [
+        "module:app/a.py",
+        "module:app/b.py",
+        "module:app/c.py"
+      ]
+    }
+  ]
+}
