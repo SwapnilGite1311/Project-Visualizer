@@ -1,0 +1,197 @@
+{
+  "python:KeyError": {
+    "title": "Missing dictionary key",
+    "plain": "The code asked a dictionary for a key that is not in it.",
+    "causes": [
+      "A typo in the key name",
+      "The data came from outside (a request, a file) without that field",
+      "The key was never added, or was removed earlier"
+    ]
+  },
+  "python:IndexError": {
+    "title": "Position out of range",
+    "plain": "The code asked a list (or text) for a position that does not exist, for example item 10 of a list with 3 items.",
+    "causes": [
+      "The list is empty",
+      "An off-by-one mistake in a loop or index",
+      "The list is shorter than expected"
+    ]
+  },
+  "python:AttributeError": {
+    "title": "No such attribute",
+    "plain": "The code used a name after a dot (like user.email) that this object does not have.",
+    "causes": [
+      "The value is None instead of the expected object",
+      "A typo in the attribute or method name",
+      "The object is of a different type than expected"
+    ]
+  },
+  "python:TypeError": {
+    "title": "Wrong kind of value",
+    "plain": "An operation got a value of the wrong type, like adding a number to text or calling something that is not a function.",
+    "causes": [
+      "Mixing text and numbers",
+      "Passing the wrong number of arguments to a function",
+      "A value is None where an object was expected"
+    ]
+  },
+  "python:ValueError": {
+    "title": "Right type, bad value",
+    "plain": "A function got a value of the right type but with content it cannot use, like int(\"abc\").",
+    "causes": [
+      "Text that is not a valid number or date",
+      "Unpacking a different number of items than expected",
+      "Input that was not checked before use"
+    ]
+  },
+  "python:NameError": {
+    "title": "Unknown name",
+    "plain": "The code used a variable or function name that has not been defined at that point.",
+    "causes": [
+      "A typo in the name",
+      "A missing import",
+      "The variable is only set in some branches of an if"
+    ]
+  },
+  "python:ImportError": {
+    "title": "Import failed",
+    "plain": "Python found the module but could not import the name asked for from it.",
+    "causes": [
+      "The name was renamed or removed in that module",
+      "Two modules import each other (a circular import)",
+      "A different version of the package is installed"
+    ]
+  },
+  "python:ModuleNotFoundError": {
+    "title": "Module not found",
+    "plain": "Python could not find a module with that name.",
+    "causes": [
+      "The package is not installed in this environment",
+      "A typo in the module name",
+      "The program is started from a different folder than expected"
+    ]
+  },
+  "python:ZeroDivisionError": {
+    "title": "Division by zero",
+    "plain": "The code divided a number by zero.",
+    "causes": [
+      "A count or total that can be zero (for example an empty list)",
+      "Missing check before dividing"
+    ]
+  },
+  "python:FileNotFoundError": {
+    "title": "File not found",
+    "plain": "The program tried to open a file or folder that does not exist.",
+    "causes": [
+      "A wrong or relative path",
+      "The program runs from a different folder",
+      "The file was not created yet or was deleted"
+    ]
+  },
+  "python:RecursionError": {
+    "title": "Too many nested calls",
+    "plain": "A function kept calling itself (directly or through others) until Python stopped it.",
+    "causes": [
+      "A recursive function without a correct stop condition",
+      "Two functions calling each other forever"
+    ]
+  },
+  "python:AssertionError": {
+    "title": "A check failed",
+    "plain": "An assert statement found that something the code expected to be true was false.",
+    "causes": [
+      "A bug earlier produced unexpected data",
+      "The assumption in the assert is no longer valid"
+    ]
+  },
+  "javascript:TypeError": {
+    "title": "Wrong kind of value",
+    "plain": "The code used a value in a way its type does not allow, most often reading a property of undefined or null.",
+    "causes": [
+      "A variable is undefined or null",
+      "Calling something that is not a function",
+      "Data arrived in a different shape than expected"
+    ]
+  },
+  "javascript:ReferenceError": {
+    "title": "Unknown name",
+    "plain": "The code used a variable that does not exist in that place.",
+    "causes": ["A typo in the name", "A missing import", "Using a variable before it is declared"]
+  },
+  "javascript:RangeError": {
+    "title": "Value out of range",
+    "plain": "A value was outside the allowed range, or functions called each other too deeply.",
+    "causes": [
+      "Endless recursion (\"Maximum call stack size exceeded\")",
+      "An invalid array length or number format"
+    ]
+  },
+  "javascript:SyntaxError": {
+    "title": "Invalid code or data",
+    "plain": "The code, or text parsed as JSON, is not written correctly.",
+    "causes": [
+      "Parsing a response that is not valid JSON (often an HTML error page)",
+      "A typo in the code that the build did not catch"
+    ]
+  },
+  "java:java.lang.NullPointerException": {
+    "title": "Used a null value",
+    "plain": "The code used an object reference that points to nothing (null).",
+    "causes": ["A method returned null", "A field was never set", "A map lookup found no value"]
+  },
+  "java:java.lang.ArrayIndexOutOfBoundsException": {
+    "title": "Position out of range",
+    "plain": "The code asked an array for a position that does not exist.",
+    "causes": ["An off-by-one mistake in a loop", "The array is shorter than expected"]
+  },
+  "java:java.lang.ClassCastException": {
+    "title": "Wrong type conversion",
+    "plain": "The code tried to treat an object as a type it is not.",
+    "causes": [
+      "A collection holds objects of mixed types",
+      "A wrong assumption about what a method returns"
+    ]
+  },
+  "java:java.lang.IllegalArgumentException": {
+    "title": "Bad argument",
+    "plain": "A method was given an argument it does not accept.",
+    "causes": ["Input that was not checked before use", "A value out of the allowed range"]
+  },
+  "java:java.lang.IllegalStateException": {
+    "title": "Wrong moment",
+    "plain": "A method was called when the object was not in a state that allows it.",
+    "causes": [
+      "Calling methods in the wrong order",
+      "Using something after it was closed or before it was started"
+    ]
+  },
+  "go:panic": {
+    "title": "Program panic",
+    "plain": "The Go program hit an error it could not continue from and stopped.",
+    "causes": [
+      "Using a nil pointer or map",
+      "An index out of range",
+      "An explicit panic() in the code"
+    ]
+  },
+  "csharp:System.NullReferenceException": {
+    "title": "Used a null value",
+    "plain": "The code used an object reference that points to nothing (null).",
+    "causes": ["A method returned null", "A property was never set", "A lookup found nothing"]
+  },
+  "csharp:System.ArgumentException": {
+    "title": "Bad argument",
+    "plain": "A method was given an argument it does not accept.",
+    "causes": ["Input that was not checked before use", "A value in the wrong format"]
+  },
+  "csharp:System.InvalidOperationException": {
+    "title": "Wrong moment",
+    "plain": "A method was called when the object was not in a state that allows it.",
+    "causes": ["Changing a collection while looping over it", "Calling methods in the wrong order"]
+  },
+  "csharp:System.IndexOutOfRangeException": {
+    "title": "Position out of range",
+    "plain": "The code asked an array for a position that does not exist.",
+    "causes": ["An off-by-one mistake in a loop", "The array is shorter than expected"]
+  }
+}
