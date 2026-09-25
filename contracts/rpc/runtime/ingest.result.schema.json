@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/runtime/ingest.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "accepted",
+    "mapped",
+    "dropped"
+  ],
+  "properties": {
+    "accepted": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "mapped": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "dropped": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

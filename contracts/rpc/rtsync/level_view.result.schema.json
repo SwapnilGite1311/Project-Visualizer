@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/rtsync/level_view.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "parent",
+    "nodes",
+    "edges",
+    "live",
+    "flows"
+  ],
+  "properties": {
+    "parent": {
+      "$ref": "../../common/node.schema.json"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "../../common/node.schema.json"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "../../common/edge.schema.json"
+      }
+    },
+    "live": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "calls",
+          "errors",
+          "stalls",
+          "p95_ms",
+          "health"
+        ],
+        "properties": {
+          "calls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "errors": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "stalls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "p95_ms": {
+            "type": "number"
+          },
+          "health": {
+            "$ref": "../../common/enums.schema.json#/$defs/health"
+          }
+        }
+      }
+    },
+    "flows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_id",
+          "target_id",
+          "count",
+          "edge_id"
+        ],
+        "properties": {
+          "source_id": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "edge_id": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "v": 1,
+  "event_id": "6f1c2b8e-3a4d-4f5e-9a6b-7c8d9e0f1a2b",
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "span_id": "00f067aa0ba902b7",
+  "parent_span_id": null,
+  "kind": "call",
+  "name": "app.users.get_user",
+  "file_path": "C:/code/app/users.py",
+  "line": 42,
+  "start_ns": 1790000000000000000,
+  "duration_ns": 1200000,
+  "status": "error",
+  "error": {
+    "type": "ValueError",
+    "message": "bad id",
+    "stack": "Traceback (most recent call last): ..."
+  },
+  "attrs": {
+    "http.method": "GET",
+    "http.route": "/users/{id}",
+    "http.status_code": 200,
+    "db.system": "postgresql",
+    "db.statement": "SELECT ..."
+  },
+  "service": "my-app",
+  "pid": 1234,
+  "thread": "MainThread"
+}

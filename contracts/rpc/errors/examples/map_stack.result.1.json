@@ -1,0 +1,24 @@
+{
+  "error_id": "e1",
+  "language": "python",
+  "error_type": "ValueError",
+  "message": "bad id",
+  "frames": [
+    {
+      "file_path": "main.py",
+      "line": 9,
+      "function": "main",
+      "node_id": "function:main.py#main",
+      "in_project": true,
+      "is_origin": false
+    },
+    {
+      "file_path": "app/services.py",
+      "line": 10,
+      "function": "get_user",
+      "node_id": "method:app/services.py#UserService.get_user",
+      "in_project": true,
+      "is_origin": true
+    }
+  ]
+}

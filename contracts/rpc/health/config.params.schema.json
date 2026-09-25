@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/health/config.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "window_ms": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "error_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "warn_p95_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "stall_ms": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "loop_calls": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

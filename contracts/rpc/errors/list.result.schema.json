@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/errors/list.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "errors"
+  ],
+  "properties": {
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error_id",
+          "source",
+          "language",
+          "error_type",
+          "message",
+          "count",
+          "first_seen_ms",
+          "last_seen_ms",
+          "origin_node_id",
+          "frames"
+        ],
+        "properties": {
+          "error_id": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "runtime",
+              "pasted"
+            ]
+          },
+          "language": {
+            "enum": [
+              "python",
+              "javascript",
+              "java",
+              "go",
+              "csharp",
+              "unknown"
+            ]
+          },
+          "error_type": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "first_seen_ms": {
+            "type": "integer"
+          },
+          "last_seen_ms": {
+            "type": "integer"
+          },
+          "origin_node_id": {
+            "type": "string"
+          },
+          "frames": {
+            "type": "array",
+            "items": {
+              "$ref": "map_stack.result.schema.json#/$defs/frame"
+            }
+          }
+        }
+      }
+    }
+  }
+}

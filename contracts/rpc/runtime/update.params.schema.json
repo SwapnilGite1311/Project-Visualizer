@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/runtime/update.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "window_start_ns",
+    "window_end_ns",
+    "node_hits",
+    "edge_flows",
+    "errors",
+    "stalls"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "window_start_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "window_end_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "node_hits": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "edge_flows": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "type",
+          "message",
+          "event_id"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "stalls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "duration_ns"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "duration_ns": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

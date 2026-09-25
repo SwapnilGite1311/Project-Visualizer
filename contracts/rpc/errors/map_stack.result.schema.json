@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/errors/map_stack.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "error_id",
+    "language",
+    "error_type",
+    "message",
+    "frames"
+  ],
+  "properties": {
+    "error_id": {
+      "type": "string"
+    },
+    "language": {
+      "enum": [
+        "python",
+        "javascript",
+        "java",
+        "go",
+        "csharp",
+        "unknown"
+      ]
+    },
+    "error_type": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "frames": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/frame"
+      }
+    }
+  },
+  "$defs": {
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_path",
+        "line",
+        "function",
+        "node_id",
+        "in_project",
+        "is_origin"
+      ],
+      "properties": {
+        "file_path": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "function": {
+          "type": "string"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "in_project": {
+          "type": "boolean"
+        },
+        "is_origin": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

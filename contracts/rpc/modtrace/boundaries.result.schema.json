@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/modtrace/boundaries.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "crossings"
+  ],
+  "properties": {
+    "crossings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from_id",
+          "to_id",
+          "count",
+          "avg_ms",
+          "errors",
+          "stalls",
+          "loops"
+        ],
+        "properties": {
+          "from_id": {
+            "type": "string"
+          },
+          "to_id": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "avg_ms": {
+            "type": "number"
+          },
+          "errors": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "stalls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "loops": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

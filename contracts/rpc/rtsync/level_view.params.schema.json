@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/rtsync/level_view.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parent_id": {
+      "type": "string"
+    },
+    "window_ms": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 600000
+    }
+  }
+}

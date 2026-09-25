@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/runtime/recent_traces.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "traces"
+  ],
+  "properties": {
+    "traces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "trace_id",
+          "root_name",
+          "start_ns",
+          "duration_ns",
+          "spans",
+          "errors"
+        ],
+        "properties": {
+          "trace_id": {
+            "type": "string"
+          },
+          "root_name": {
+            "type": "string"
+          },
+          "start_ns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "duration_ns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "spans": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "errors": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}
