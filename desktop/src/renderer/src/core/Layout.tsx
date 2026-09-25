@@ -1,7 +1,10 @@
+import type { CSSProperties } from 'react';
 import { Tabs } from '../ui/Tabs';
 import { ErrorBoundary } from './ErrorBoundary';
 import styles from './Layout.module.css';
+import { sizeVariables, usePanelSizes } from './panel-sizes';
 import { type AppRegistry, appRegistry, type PanelArea, type RegistryReader } from './registry';
+import { Splitter } from './Splitter';
 import { useAppStore } from './store';
 
 type Registry = AppRegistry & RegistryReader;
@@ -15,8 +18,13 @@ function Area({ area, registry }: { area: PanelArea; registry: Registry }) {
   const Component = active.component;
   return (
     <div className={`${styles.area} ${styles[area]}`} data-area={area}>
+      {area !== 'center' && <Splitter area={area} />}
       {panels.length > 1 && (
-        <Tabs tabs={panels.map((p) => ({ id: p.id, title: p.title }))} active={active.id} onChange={(id) => showPanel(area, id)} />
+        <Tabs
+          tabs={panels.map((p) => ({ id: p.id, title: p.title }))}
+          active={active.id}
+          onChange={(id) => showPanel(area, id)}
+        />
       )}
       <div className={styles.areaBody}>
         <ErrorBoundary key={active.id} name={active.title}>
@@ -29,8 +37,12 @@ function Area({ area, registry }: { area: PanelArea; registry: Registry }) {
 
 export function Layout({ registry = appRegistry }: { registry?: Registry }) {
   const hasBottom = registry.panels('bottom').length > 0;
+  const sizes = usePanelSizes((s) => s.sizes);
   return (
-    <div className={`${styles.root} ${hasBottom ? '' : styles.noBottom}`}>
+    <div
+      className={`${styles.root} ${hasBottom ? '' : styles.noBottom}`}
+      style={sizeVariables(sizes) as CSSProperties}
+    >
       <div className={styles.toolbar}>
         {registry.toolbarItems('left').map(({ id, component: Item }) => (
           <Item key={id} />

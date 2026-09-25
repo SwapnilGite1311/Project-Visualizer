@@ -27,14 +27,22 @@ describe('registry', () => {
   it('rejects duplicate ids per category', () => {
     const r = createRegistry();
     r.addScreen({ id: 'welcome', component: Dummy });
-    expect(() => r.addScreen({ id: 'welcome', component: Dummy })).toThrow('duplicate screen id: welcome');
+    expect(() => r.addScreen({ id: 'welcome', component: Dummy })).toThrow(
+      'duplicate screen id: welcome',
+    );
     expect(() => r.addGlobal({ id: 'welcome', component: Dummy })).not.toThrow();
   });
 
   it('filters node actions with when', () => {
     const r = createRegistry();
     r.addNodeAction({ id: 'explain', title: 'Explain', order: 1, run: () => undefined });
-    r.addNodeAction({ id: 'fn-only', title: 'F', order: 2, when: (n) => n.kind === 'function', run: () => undefined });
+    r.addNodeAction({
+      id: 'fn-only',
+      title: 'F',
+      order: 2,
+      when: (n) => n.kind === 'function',
+      run: () => undefined,
+    });
     expect(r.nodeActions(node('function')).map((a) => a.id)).toEqual(['explain', 'fn-only']);
     expect(r.nodeActions(node('class')).map((a) => a.id)).toEqual(['explain']);
   });

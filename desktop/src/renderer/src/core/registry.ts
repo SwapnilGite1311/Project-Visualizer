@@ -9,8 +9,19 @@ export interface NodeRef {
   span: { start_line: number; start_col: number; end_line: number; end_col: number };
 }
 export type PanelArea = 'left' | 'center' | 'right' | 'bottom';
-export interface PanelDef { id: string; title: string; area: PanelArea; order: number; component: ComponentType }
-export interface CommandDef { id: string; title: string; shortcut?: string; run: () => void | Promise<void> }
+export interface PanelDef {
+  id: string;
+  title: string;
+  area: PanelArea;
+  order: number;
+  component: ComponentType;
+}
+export interface CommandDef {
+  id: string;
+  title: string;
+  shortcut?: string;
+  run: () => void | Promise<void>;
+}
 export interface NodeActionDef {
   id: string;
   title: string;
@@ -18,10 +29,27 @@ export interface NodeActionDef {
   when?: (node: NodeRef) => boolean;
   run: (node: NodeRef) => void | Promise<void>;
 }
-export interface SettingsSectionDef { id: string; title: string; order: number; component: ComponentType }
-export interface StatusItemDef { id: string; order: number; component: ComponentType }
-export interface ScreenDef { id: string; component: ComponentType }
-export interface ToolbarItemDef { id: string; order: number; side: 'left' | 'right'; component: ComponentType }
+export interface SettingsSectionDef {
+  id: string;
+  title: string;
+  order: number;
+  component: ComponentType;
+}
+export interface StatusItemDef {
+  id: string;
+  order: number;
+  component: ComponentType;
+}
+export interface ScreenDef {
+  id: string;
+  component: ComponentType;
+}
+export interface ToolbarItemDef {
+  id: string;
+  order: number;
+  side: 'left' | 'right';
+  component: ComponentType;
+}
 export interface WelcomeActionDef {
   id: string;
   title: string;
@@ -29,7 +57,10 @@ export interface WelcomeActionDef {
   order: number;
   run: () => void | Promise<void>;
 }
-export interface GlobalDef { id: string; component: ComponentType }
+export interface GlobalDef {
+  id: string;
+  component: ComponentType;
+}
 export interface AppRegistry {
   addPanel(def: PanelDef): void;
   addCommand(def: CommandDef): void;

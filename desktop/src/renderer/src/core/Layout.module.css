@@ -1,8 +1,12 @@
 .root {
   display: grid;
   height: 100%;
-  grid-template-columns: 280px 1fr 360px;
-  grid-template-rows: 40px 1fr 220px 24px;
+  /* Panels follow the window unless the user dragged them (see panel-sizes.ts); the map takes the rest. */
+  grid-template-columns: var(--left-w, clamp(200px, 18vw, 340px)) minmax(0, 1fr) var(
+      --right-w,
+      clamp(240px, 22vw, 400px)
+    );
+  grid-template-rows: 40px minmax(0, 1fr) var(--bottom-h, clamp(140px, 25vh, 320px)) 24px;
   grid-template-areas:
     'toolbar toolbar toolbar'
     'left center right'
@@ -10,7 +14,7 @@
     'status status status';
 }
 .noBottom {
-  grid-template-rows: 40px 1fr 24px;
+  grid-template-rows: 40px minmax(0, 1fr) 24px;
   grid-template-areas:
     'toolbar toolbar toolbar'
     'left center right'
@@ -19,22 +23,52 @@
 .toolbar {
   grid-area: toolbar;
   display: flex;
+  min-width: 0;
+  overflow: hidden;
   align-items: center;
   gap: var(--gap);
   padding: 0 8px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-panel);
 }
-.spacer { flex: 1; }
-.area { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg-panel); }
-.left { grid-area: left; border-right: 1px solid var(--border); }
-.center { grid-area: center; background: var(--bg); }
-.right { grid-area: right; border-left: 1px solid var(--border); }
-.bottom { grid-area: bottom; border-top: 1px solid var(--border); }
-.areaBody { flex: 1; min-height: 0; overflow: hidden; }
+.spacer {
+  flex: 1;
+}
+.area {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-panel);
+}
+.left {
+  grid-area: left;
+  border-right: 1px solid var(--border);
+}
+.center {
+  grid-area: center;
+  background: var(--bg);
+}
+.right {
+  grid-area: right;
+  border-left: 1px solid var(--border);
+}
+.bottom {
+  grid-area: bottom;
+  border-top: 1px solid var(--border);
+}
+.areaBody {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
 .status {
   grid-area: status;
   display: flex;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
   align-items: center;
   gap: 16px;
   padding: 0 10px;
@@ -42,4 +76,39 @@
   background: var(--bg-panel);
   color: var(--fg-muted);
   font-size: 12px;
+}
+
+/* Drag handles on the inner edge of the side and bottom panels. */
+.splitter {
+  position: absolute;
+  z-index: 5;
+  background: transparent;
+  touch-action: none;
+}
+.splitter:hover,
+.splitter:focus-visible {
+  background: var(--accent);
+  opacity: 0.5;
+  outline: none;
+}
+.splitter-left {
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 6px;
+  cursor: col-resize;
+}
+.splitter-right {
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 6px;
+  cursor: col-resize;
+}
+.splitter-bottom {
+  left: 0;
+  right: 0;
+  top: -3px;
+  height: 6px;
+  cursor: row-resize;
 }

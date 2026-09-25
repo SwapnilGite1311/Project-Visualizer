@@ -1,16 +1,28 @@
 import { join } from 'node:path';
-import { app, BrowserWindow, session, shell } from 'electron';
+import { app, BrowserWindow, screen, session, shell } from 'electron';
 
 const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
   "font-src 'self' data:; worker-src 'self' blob:; connect-src 'self'";
 
+export const MIN_SIZE = { width: 860, height: 560 };
+
+// Start at 1400x900, but never larger than 90% of the screen (small laptops, high display scaling).
+export function initialSize(workArea: { width: number; height: number }): {
+  width: number;
+  height: number;
+} {
+  return {
+    width: Math.max(MIN_SIZE.width, Math.min(1400, Math.round(workArea.width * 0.9))),
+    height: Math.max(MIN_SIZE.height, Math.min(900, Math.round(workArea.height * 0.9))),
+  };
+}
+
 export function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1000,
-    minHeight: 640,
+    ...initialSize(screen.getPrimaryDisplay().workAreaSize),
+    minWidth: MIN_SIZE.width,
+    minHeight: MIN_SIZE.height,
     show: false,
     title: 'Project Visualizer',
     backgroundColor: '#0f1320',
