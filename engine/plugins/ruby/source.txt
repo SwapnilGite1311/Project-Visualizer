@@ -1,0 +1,3 @@
+repo=https://github.com/tree-sitter/tree-sitter-ruby
+tag=v0.23.1
+lib_name=ruby

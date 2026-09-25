@@ -1,0 +1,1 @@
+{"id":"php","extensions":[".php"],"library":"php.dll","symbol":"tree_sitter_php","module_naming":"directory","resolution":"suffix","self_keyword":"$this","decision_node_types":["if_statement","for_statement","foreach_statement","while_statement","catch_clause","conditional_expression","case_statement"]}

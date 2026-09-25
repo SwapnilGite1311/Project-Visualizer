@@ -1,0 +1,1 @@
+{"id":"ruby","extensions":[".rb"],"library":"ruby.dll","symbol":"tree_sitter_ruby","module_naming":"path","resolution":"relative_path","self_keyword":"self","require_function":"require_relative","decision_node_types":["if","unless","while","until","for","when","rescue","conditional"]}

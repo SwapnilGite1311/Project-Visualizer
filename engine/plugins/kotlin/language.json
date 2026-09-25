@@ -1,0 +1,1 @@
+{"id":"kotlin","extensions":[".kt",".kts"],"library":"kotlin.dll","symbol":"tree_sitter_kotlin","module_naming":"dotted","resolution":"dotted","self_keyword":"this","decision_node_types":["if_expression","when_entry","for_statement","while_statement","catch_block"]}
