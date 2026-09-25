@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BatchSource, RuntimeEventJson } from './batch';
-import { Forwarder, MAX_QUEUE, normalizeRoot } from './forwarder';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Forwarder, MAX_QUEUE, normalizeRoot, sameFolderKey } from './forwarder';
 
 const source = (project_root = ''): BatchSource => ({
   agent: 'python',
@@ -99,5 +102,21 @@ describe('Forwarder', () => {
   it('normalizes folders', () => {
     expect(normalizeRoot('C:\\A\\b\\', true)).toBe('c:/a/b');
     expect(normalizeRoot('/srv/App/', false)).toBe('/srv/App');
+  });
+
+  it('treats two spellings of the same folder as the same project', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pv fwd-')); // may be a short name (SWAPNI~1) on Windows
+    try {
+      const long = realpathSync.native(dir);
+      expect(sameFolderKey(dir)).toBe(sameFolderKey(long));
+      const { forwarder } = setup();
+      forwarder.setActiveProject('p1', dir);
+      forwarder.push(source(long), events(2));
+      await forwarder.tick();
+      expect(forwarder.stats()).toMatchObject({ forwarded: 2, dropped_other_root: 0 });
+      expect(sameFolderKey('Z:/not/here')).toBe(normalizeRoot('Z:/not/here'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

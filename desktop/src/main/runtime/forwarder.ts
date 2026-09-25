@@ -1,4 +1,5 @@
 // Queues events from agents and sends them to the engine (runtime.ingest) for the project that is open.
+import { realpathSync } from 'node:fs';
 import type { BatchSource, RuntimeEventJson } from './batch';
 
 export const FORWARD_INTERVAL_MS = 200;
@@ -22,6 +23,23 @@ export interface ForwarderStats {
 export function normalizeRoot(root: string, windows = process.platform === 'win32'): string {
   const path = root.replace(/\\/g, '/').replace(/\/+$/, '');
   return windows ? path.toLowerCase() : path;
+}
+
+const resolvedRoots = new Map<string, string>();
+
+// The same folder can be written differently (Windows short names like SWAPNI~1, links): compare resolved folders.
+export function sameFolderKey(root: string): string {
+  let resolved = resolvedRoots.get(root);
+  if (resolved === undefined) {
+    try {
+      resolved = realpathSync.native(root);
+    } catch {
+      resolved = root; // not on this computer (e.g. a remote agent): compare as written
+    }
+    if (resolvedRoots.size > 1000) resolvedRoots.clear();
+    resolvedRoots.set(root, resolved);
+  }
+  return normalizeRoot(resolved);
 }
 
 export class Forwarder {
@@ -51,7 +69,7 @@ export class Forwarder {
   setActiveProject(projectId: string | null, root: string | null): void {
     if (projectId !== this.projectId) this.queue = [];
     this.projectId = projectId;
-    this.root = root ? normalizeRoot(root) : null;
+    this.root = root ? sameFolderKey(root) : null;
   }
 
   push(source: BatchSource, events: RuntimeEventJson[]): void {
@@ -59,7 +77,7 @@ export class Forwarder {
       this.counts.dropped_no_project += events.length;
       return;
     }
-    if (source.project_root && this.root && normalizeRoot(source.project_root) !== this.root) {
+    if (source.project_root && this.root && sameFolderKey(source.project_root) !== this.root) {
       this.counts.dropped_other_root += events.length;
       return;
     }
