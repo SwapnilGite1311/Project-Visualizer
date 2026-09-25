@@ -19,6 +19,8 @@ TEST(Locate, ProjectRelativePaths) {
     EXPECT_EQ(locate::to_project_relative("C:/code/p", "app\\a.py"), "app/a.py");
     EXPECT_EQ(locate::to_project_relative("/home/u/p", "/home/u/p/main.py"), "main.py");
     EXPECT_EQ(locate::to_project_relative("C:/code/p", "D:/other/a.py"), std::nullopt);
+    EXPECT_EQ(locate::to_project_relative("C:/Users/Jane Doe/p", "file:///C:/Users/Jane%20Doe/p/src/a.js"), "src/a.js");
+    EXPECT_EQ(locate::to_project_relative("/srv/p", "file:///srv/p/a.mjs"), "a.mjs");
 }
 
 // A folder written with Windows short names (or through a link) is the same folder.

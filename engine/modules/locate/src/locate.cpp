@@ -39,10 +39,30 @@ std::string canonical_form(const std::string& path) {
     return out;
 }
 
+// "file:///C:/Users/Jane%20Doe/a.js" -> "C:/Users/Jane Doe/a.js"; "file:///srv/a.js" -> "/srv/a.js". Other text is unchanged.
+std::string from_file_url(const std::string& text) {
+    static const std::string kScheme = "file://";
+    if (text.rfind(kScheme, 0) != 0) return text;
+    std::string path = text.substr(kScheme.size());
+    if (path.size() >= 3 && path[0] == '/' && std::isalpha(static_cast<unsigned char>(path[1])) && path[2] == ':') path.erase(0, 1);
+    std::string out;
+    out.reserve(path.size());
+    for (std::size_t i = 0; i < path.size(); ++i) {
+        if (path[i] == '%' && i + 2 < path.size() && std::isxdigit(static_cast<unsigned char>(path[i + 1])) &&
+            std::isxdigit(static_cast<unsigned char>(path[i + 2]))) {
+            out.push_back(static_cast<char>(std::stoi(path.substr(i + 1, 2), nullptr, 16)));
+            i += 2;
+        } else {
+            out.push_back(path[i]);
+        }
+    }
+    return out;
+}
+
 }  // namespace
 
 std::optional<std::string> to_project_relative(const std::string& root_path, const std::string& file_path) {
-    const std::string p = core::normalize_path(file_path);
+    const std::string p = core::normalize_path(from_file_url(file_path));
     const bool drive = p.size() >= 2 && std::isalpha(static_cast<unsigned char>(p[0])) && p[1] == ':';
     if (p.empty() || (p[0] != '/' && !drive)) return p;
     if (auto rel = core::path_relative_to(root_path, p)) return rel;
