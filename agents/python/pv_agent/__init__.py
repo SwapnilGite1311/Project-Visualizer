@@ -11,9 +11,12 @@ _state: dict[str, object] = {}
 
 
 def start(config=None) -> bool:
-    """Starts recording; False (with a warning) when no token is configured. Calling it twice is harmless."""
+    """Starts recording; False (with a warning) when it cannot run. It never stops the program. Calling it twice is harmless."""
     if _state:
         return True
+    if not hasattr(sys, "monitoring"):
+        print(f"pv_agent: needs Python 3.12 or newer (this is {sys.version.split()[0]}); runtime recording is off.", file=sys.stderr)
+        return False
     from . import errors
     from .config import load_config
     from .tracer import Tracer
@@ -27,7 +30,12 @@ def start(config=None) -> bool:
     transport = Transport(config)
     tracer = Tracer(config, transport.emit)
     watchdog = Watchdog(config, transport.emit)
-    tracer.start()
+    try:
+        tracer.start()
+    except (RuntimeError, ValueError) as error:  # e.g. every sys.monitoring tool id is taken by other tools
+        transport.close()
+        print(f"pv_agent: cannot record calls ({error}); runtime recording is off.", file=sys.stderr)
+        return False
     watchdog.start()
     errors.install(transport.emit, config)
     _state.update(config=config, transport=transport, tracer=tracer, watchdog=watchdog)
