@@ -30,6 +30,10 @@ export class CyRenderer implements GraphRenderer {
   private readonly listeners = new Map<RendererEvent, Set<(p: RendererEventPayload) => void>>();
   private animationFrame: number | null = null;
   private dashOffset = 0;
+  private resizeObserver: ResizeObserver | null = null;
+  private resizeFrame: number | null = null;
+  private fitting = false;
+  private userMoved = false; // the user zoomed or panned since the last automatic fit: keep their view on resize
 
   constructor(private readonly options: { headless?: boolean } = {}) {
     ensureDagre();
@@ -60,6 +64,27 @@ export class CyRenderer implements GraphRenderer {
     cy.on('tap', (evt) => {
       if (evt.target === cy) this.emit('backgroundClick', evt, true);
     });
+    cy.on('viewport', () => {
+      if (!this.fitting) this.userMoved = true;
+    });
+    if (!this.options.headless && typeof ResizeObserver !== 'undefined') {
+      // The map area changes with the window, dragged panels and the bottom panel: redraw and re-fit.
+      this.resizeObserver = new ResizeObserver(() => {
+        if (this.resizeFrame !== null || typeof requestAnimationFrame !== 'function') return;
+        this.resizeFrame = requestAnimationFrame(() => {
+          this.resizeFrame = null;
+          this.handleResize();
+        });
+      });
+      this.resizeObserver.observe(container);
+    }
+  }
+
+  handleResize(): void {
+    const cy = this.cy;
+    if (!cy) return;
+    cy.resize();
+    if (!this.userMoved) this.autoFit();
   }
 
   setGraph(graph: ViewGraph): void {
@@ -70,12 +95,18 @@ export class CyRenderer implements GraphRenderer {
     const count = graph.nodes.length;
     const layout: LayoutOptions =
       count <= 300
-        ? ({ name: 'dagre', rankDir: 'LR', nodeSep: 30, rankSep: 80, animate: false } as LayoutOptions)
+        ? ({
+            name: 'dagre',
+            rankDir: 'LR',
+            nodeSep: 30,
+            rankSep: 80,
+            animate: false,
+          } as LayoutOptions)
         : count <= 1000
           ? { name: 'cose', animate: false }
           : { name: 'grid' };
     cy.layout(layout).run();
-    fitCapped(cy);
+    this.autoFit();
     this.syncAnimation();
   }
 
@@ -106,7 +137,7 @@ export class CyRenderer implements GraphRenderer {
   }
 
   fit(): void {
-    if (this.cy) fitCapped(this.cy);
+    this.autoFit();
   }
 
   on(event: RendererEvent, cb: (p: RendererEventPayload) => void): () => void {
@@ -117,13 +148,32 @@ export class CyRenderer implements GraphRenderer {
 
   destroy(): void {
     this.stopAnimation();
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    if (this.resizeFrame !== null && typeof cancelAnimationFrame === 'function')
+      cancelAnimationFrame(this.resizeFrame);
+    this.resizeFrame = null;
     this.cy?.destroy();
     this.cy = null;
     this.listeners.clear();
   }
 
+  private autoFit(): void {
+    if (!this.cy) return;
+    this.fitting = true;
+    try {
+      fitCapped(this.cy);
+    } finally {
+      this.fitting = false;
+    }
+    this.userMoved = false;
+  }
+
   private emit(event: RendererEvent, evt: EventObject, noNode = false): void {
-    const rect = this.options.headless || !this.container ? { left: 0, top: 0 } : this.container.getBoundingClientRect();
+    const rect =
+      this.options.headless || !this.container
+        ? { left: 0, top: 0 }
+        : this.container.getBoundingClientRect();
     const pos = evt.renderedPosition ?? { x: 0, y: 0 };
     const payload: RendererEventPayload = {
       nodeId: noNode ? null : evt.target.id(),
@@ -135,7 +185,11 @@ export class CyRenderer implements GraphRenderer {
 
   private syncAnimation(): void {
     const hasAnimated = (this.cy?.edges('.animated').length ?? 0) > 0;
-    if (hasAnimated && this.animationFrame === null && typeof requestAnimationFrame === 'function') {
+    if (
+      hasAnimated &&
+      this.animationFrame === null &&
+      typeof requestAnimationFrame === 'function'
+    ) {
       const step = () => {
         const animated = this.cy?.edges('.animated');
         if (!animated || animated.length === 0) {
@@ -153,7 +207,8 @@ export class CyRenderer implements GraphRenderer {
   }
 
   private stopAnimation(): void {
-    if (this.animationFrame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.animationFrame);
+    if (this.animationFrame !== null && typeof cancelAnimationFrame === 'function')
+      cancelAnimationFrame(this.animationFrame);
     this.animationFrame = null;
   }
 }

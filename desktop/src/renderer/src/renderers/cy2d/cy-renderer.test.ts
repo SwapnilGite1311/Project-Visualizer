@@ -6,7 +6,10 @@ import { CyRenderer, fitCapped, MAX_FIT_ZOOM } from './cy-renderer';
 
 function graph(overlays = {}) {
   return buildViewGraph(
-    levelView([gnode('a', 'module'), gnode('b', 'module'), gnode('c', 'class')], [gedge('a', 'b'), gedge('b', 'c', 'imports')]),
+    levelView(
+      [gnode('a', 'module'), gnode('b', 'module'), gnode('c', 'class')],
+      [gedge('a', 'b'), gedge('b', 'c', 'imports')],
+    ),
     overlays,
   );
 }
@@ -67,5 +70,20 @@ describe('fitCapped', () => {
     fitCapped(cy);
     expect(cy.zoom()).toBe(MAX_FIT_ZOOM);
     cy.destroy();
+  });
+
+  it('re-fits the map when its area is resized, unless the user moved the view', () => {
+    const r = mounted();
+    r.setGraph(graph());
+    const fit = vi.spyOn(r.core!, 'fit');
+    r.handleResize();
+    expect(fit).toHaveBeenCalledTimes(1);
+    r.core!.zoom(2.5); // the user zooms in
+    r.handleResize();
+    expect(fit).toHaveBeenCalledTimes(1);
+    r.fit(); // "fit to screen" gives the automatic behaviour back
+    r.handleResize();
+    expect(fit).toHaveBeenCalledTimes(3);
+    r.destroy();
   });
 });
