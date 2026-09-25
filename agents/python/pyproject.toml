@@ -1,0 +1,19 @@
+[project]
+name = "pv-agent"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+description = "Project Visualizer runtime agent"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pv_agent"]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.ruff]
+line-length = 140
