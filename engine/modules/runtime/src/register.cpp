@@ -13,6 +13,15 @@ int64_t steady_now_ms() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
+int64_t wall_now_ms() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+// The hub keeps times on the steady clock (immune to clock changes); clients get Unix milliseconds.
+int64_t to_wall_ms(int64_t steady_ms, int64_t steady_now, int64_t wall_now) {
+    return steady_ms > 0 ? wall_now - (steady_now - steady_ms) : 0;
+}
+
 Json step_json(const pv::runtime::MappedEvent& m) {
     return Json{{"event_id", m.ev.event_id},
                 {"span_id", m.ev.span_id},
@@ -52,12 +61,13 @@ void pv_register_runtime(pv::session::Registry& reg) {
     reg.methods.add("runtime.status", [&pm](const Json& p) {
         const std::string pid = pv::rpc::require_string(p, "project_id");
         pm.get(pid);
-        const auto s = pv::runtime::hub().status(pid, steady_now_ms());
+        const int64_t now = steady_now_ms();
+        const auto s = pv::runtime::hub().status(pid, now);
         return Json{{"project_id", pid},
                     {"active", s.active},
                     {"events_total", s.events_total},
                     {"events_buffered", s.events_buffered},
-                    {"last_event_ms", s.last_event_ms},
+                    {"last_event_ms", to_wall_ms(s.last_event_ms, now, wall_now_ms())},
                     {"services", s.services}};
     });
 

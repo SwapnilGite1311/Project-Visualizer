@@ -53,6 +53,7 @@ public:
 
 private:
     struct ProjectState;  // defined in hub_state.hpp
+    static void link_waiting_children(ProjectState& state, const MappedEvent& parent);
     std::shared_ptr<ProjectState> state_for(const std::string& project_id);
     std::shared_ptr<const ProjectState> find_state(const std::string& project_id) const;
     mutable std::mutex mutex_;

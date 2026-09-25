@@ -66,3 +66,23 @@ TEST(RuntimeIngest, RingBufferAndClear) {
     runtime::hub().clear(f.project->id());
     EXPECT_EQ(runtime::hub().status(f.project->id(), 1000).events_buffered, 0);
 }
+
+// Agents report a span when it ends, so a child usually arrives before its parent (same batch or an earlier one).
+TEST(RuntimeIngest, ChildrenBeforeTheirParent) {
+    runtime::testing::Fixture f;
+    rpc::RecordingNotifier notifier;
+    const std::string services = "method:app/services.py#UserService.get_user";
+    const std::string valid = "function:app/utils.py#is_valid";
+    runtime::hub().ingest(*f.project, {event("c1", f.root + "/app/utils.py", 9, "p")}, notifier, 1000);  // parent not seen yet
+    runtime::hub().ingest(*f.project, {event("c2", f.root + "/app/utils.py", 9, "p"), event("p", f.root + "/app/services.py", 11)},
+                          notifier, 1100);
+    const auto events = runtime::hub().events(f.project->id());
+    ASSERT_EQ(events.size(), 3u);
+    EXPECT_EQ(events[0].parent_node_id, services);  // linked when the parent arrived
+    EXPECT_EQ(events[1].parent_node_id, services);
+    EXPECT_EQ(events[2].parent_node_id, "");
+
+    runtime::hub().ingest(*f.project, {}, notifier, 1300);
+    ASSERT_EQ(notifier.items().size(), 1u);
+    EXPECT_EQ(notifier.items()[0].second["edge_flows"][services + "|" + valid], 2);
+}

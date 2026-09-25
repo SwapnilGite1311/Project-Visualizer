@@ -45,6 +45,7 @@ std::vector<MappedEvent> RuntimeHub::map_events(const session::Project& project,
     std::lock_guard lock(mutex_);
     auto state = state_for(project.id());
     if (state->span_nodes.size() > kSpanMapMax) state->span_nodes.clear();
+    if (state->waiting_children.size() > kSpanMapMax) state->waiting_children.clear();
     for (MappedEvent& m : mapped) {
         if (!m.ev.parent_span_id.empty()) {
             const auto it = state->span_nodes.find(m.ev.parent_span_id);
@@ -53,6 +54,21 @@ std::vector<MappedEvent> RuntimeHub::map_events(const session::Project& project,
         if (!m.node_id.empty()) state->span_nodes[m.ev.span_id] = m.node_id;
     }
     return mapped;
+}
+
+// This event's span may be the parent of children that arrived earlier: give those buffered children their parent node
+// (module tracing and live flows read it) and count the flows now.
+void RuntimeHub::link_waiting_children(ProjectState& state, const MappedEvent& parent) {
+    const auto it = state.waiting_children.find(parent.ev.span_id);
+    if (it == state.waiting_children.end()) return;
+    std::set<std::string> wanted(it->second.begin(), it->second.end());
+    state.waiting_children.erase(it);
+    std::size_t scanned = 0;
+    for (auto b = state.buffer.rbegin(); b != state.buffer.rend() && !wanted.empty() && scanned < kLateLinkScan; ++b, ++scanned) {
+        if (wanted.erase(b->ev.event_id) == 0 || !b->parent_node_id.empty()) continue;
+        b->parent_node_id = parent.node_id;
+        if (b->node_id != parent.node_id) ++state.edge_flows[parent.node_id + "|" + b->node_id];
+    }
 }
 
 IngestResult RuntimeHub::ingest(const session::Project& project, const std::vector<RuntimeEvent>& events, rpc::Notifier& notifier,
@@ -80,6 +96,8 @@ IngestResult RuntimeHub::ingest(const session::Project& project, const std::vect
             ++result.mapped;
             ++state->node_hits[m.node_id];
             if (!m.parent_node_id.empty() && m.parent_node_id != m.node_id) ++state->edge_flows[m.parent_node_id + "|" + m.node_id];
+            if (m.parent_node_id.empty() && !m.ev.parent_span_id.empty()) state->waiting_children[m.ev.parent_span_id].push_back(m.ev.event_id);
+            link_waiting_children(*state, m);
             if (is_error_event(m.ev)) {
                 state->errors.push_back({{"node_id", m.node_id},
                                          {"type", m.ev.error ? m.ev.error->type : ""},

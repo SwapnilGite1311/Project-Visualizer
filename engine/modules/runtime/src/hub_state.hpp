@@ -4,6 +4,7 @@
 #include <map>
 #include <set>
 #include <unordered_map>
+#include <vector>
 
 #include "pv/runtime/hub.hpp"
 
@@ -12,6 +13,7 @@ namespace pv::runtime {
 inline constexpr std::size_t kBufferMax = 50000;
 inline constexpr std::size_t kSpanMapMax = 200000;
 inline constexpr int64_t kWindowMs = 250;
+inline constexpr std::size_t kLateLinkScan = 20000;  // how far back in the buffer a child waiting for its parent is looked for
 
 struct RuntimeHub::ProjectState {
     std::deque<MappedEvent> buffer;
@@ -19,6 +21,9 @@ struct RuntimeHub::ProjectState {
     int64_t last_event_ms = 0;
     std::set<std::string> services;
     std::unordered_map<std::string, std::string> span_nodes;  // span id -> node id
+    // Agents report a span when it ends, so children usually arrive before their parent:
+    // parent span id -> event ids of mapped children still waiting for the parent's node.
+    std::unordered_map<std::string, std::vector<std::string>> waiting_children;
 
     // Current 250 ms window.
     int64_t window_start_ms = 0;

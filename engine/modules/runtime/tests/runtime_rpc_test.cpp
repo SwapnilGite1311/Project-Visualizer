@@ -1,3 +1,4 @@
+#include <chrono>
 #include <gtest/gtest.h>
 
 #include "runtime_fixture.hpp"
@@ -22,6 +23,9 @@ TEST(RuntimeRpc, IngestStatusTraceAndClear) {
     EXPECT_EQ(status["events_total"], 1);
     EXPECT_EQ(status["active"], true);
     EXPECT_EQ(status["services"], Json{"demo"});
+    const int64_t wall_now =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    EXPECT_NEAR(static_cast<double>(status["last_event_ms"].get<int64_t>()), static_cast<double>(wall_now), 5000.0);  // Unix ms
 
     const Json trace = f.env.call("runtime.trace", Json{{"project_id", pid}, {"trace_id", "t1"}});
     ASSERT_EQ(trace["steps"].size(), 1u);
