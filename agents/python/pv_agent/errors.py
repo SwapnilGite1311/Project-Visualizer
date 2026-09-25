@@ -9,6 +9,7 @@ from .events import ProjectFiles, error_info, make_event
 from .ids import now_ns
 
 _previous: dict[str, object] = {}
+_active: dict[str, object] = {}
 
 
 def _report(emit, config, files: ProjectFiles, exc: BaseException) -> None:
@@ -36,6 +37,7 @@ def install(emit, config) -> None:
     if _previous:
         return
     files = ProjectFiles(config.project_root)
+    _active.update(emit=emit, config=config, files=files)
     _previous["sys"] = sys.excepthook
     _previous["threading"] = threading.excepthook
 
@@ -56,8 +58,15 @@ def install(emit, config) -> None:
     threading.excepthook = thread_hook
 
 
+def report_uncaught(exc: BaseException) -> None:
+    """Reports an exception that is about to end the program (used by `python -m pv_agent run`)."""
+    if _active:
+        _report(_active["emit"], _active["config"], _active["files"], exc)
+
+
 def uninstall() -> None:
     if not _previous:
         return
+    _active.clear()
     sys.excepthook = _previous.pop("sys")
     threading.excepthook = _previous.pop("threading")

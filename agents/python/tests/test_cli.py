@@ -79,3 +79,27 @@ def test_check_and_missing_token(tmp_path):
         [sys.executable, "-m", "pv_agent", "check"], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=60, check=False
     )
     assert missing.returncode == 1
+
+
+def test_run_reports_a_crash(tmp_path):
+    (tmp_path / "crash.py").write_text(
+        textwrap.dedent("""
+            def main():
+                return {}["missing"]
+
+            main()
+        """).lstrip()
+    )
+    server, bodies = start_server()
+    try:
+        env = {"PV_RUNTIME_URL": f"http://127.0.0.1:{server.server_port}", "PV_RUNTIME_TOKEN": "tok", "PV_PROJECT_ROOT": str(tmp_path)}
+        result = run_agent(["run", "crash.py"], env, tmp_path)
+    finally:
+        server.shutdown()
+    assert result.returncode == 1
+    assert "KeyError" in result.stderr
+    errors = [e for _, _, body in bodies for e in body["events"] if e["kind"] == "error"]
+    assert len(errors) == 1
+    assert errors[0]["error"]["type"] == "KeyError"
+    assert errors[0]["file_path"].replace("\\", "/").endswith("crash.py")
+    assert errors[0]["line"] == 2

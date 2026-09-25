@@ -58,6 +58,13 @@ def main(argv: list[str]) -> int:
         pv_agent.start()
         try:
             runpy.run_path(script, run_name="__main__")
+        except SystemExit:
+            raise
+        except BaseException as exc:
+            from . import errors
+
+            errors.report_uncaught(exc)  # the hooks are removed by stop() before Python prints the traceback
+            raise
         finally:
             pv_agent.stop()
         return 0
