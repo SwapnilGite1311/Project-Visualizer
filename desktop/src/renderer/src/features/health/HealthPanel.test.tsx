@@ -76,6 +76,7 @@ describe('health panel', () => {
       d: h('stalled'),
       e: h('error', 4),
       f: h('unknown'),
+      'project:': h('error', 99),
     });
     expect(list.map(([id]) => id)).toEqual(['e', 'b', 'd', 'a']);
   });

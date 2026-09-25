@@ -29,7 +29,7 @@ const TONE: Record<Health, 'neutral' | 'warning' | 'danger' | 'info' | 'success'
 
 export function problems(states: Record<string, HealthInfo>): Array<[string, HealthInfo]> {
   return Object.entries(states)
-    .filter(([, h]) => isProblem(h.state))
+    .filter(([id, h]) => id !== 'project:' && isProblem(h.state)) // the whole project is not a useful row
     .sort(
       ([ia, a], [ib, b]) =>
         severity(b.state) - severity(a.state) || b.errors - a.errors || (ia < ib ? -1 : 1),
