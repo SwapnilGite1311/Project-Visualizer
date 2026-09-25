@@ -1,0 +1,1 @@
+pv_add_module(NAME lang_javascript DEPS pv_lang_generic pv_tp_ts_javascript pv_tp_ts_typescript pv_tp_ts_tsx pv_session)
