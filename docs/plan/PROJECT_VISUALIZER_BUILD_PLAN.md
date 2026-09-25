@@ -11201,7 +11201,7 @@ public interface IGreeter
 **Refs:** R10
 **Why:** plug in.
 **Steps:**
-1. Right panel `health` ("Health", order 30); node action `root-cause` ("Find root cause", order 27, when the node's health is warning/stalled/error — read from the node's `health` field); command `health.rootCause` (`Ctrl+Shift+R`, uses the selected node); global watcher.
+1. Right panel `health` ("Health", order 30); node action `root-cause` ("Find root cause", order 27, when the node's health is warning/stalled/error — read from the node's `health` field); command `health.rootCause` (`Ctrl+Shift+K` — not `Ctrl+Shift+R`, which Electron's default menu uses for Force Reload; uses the selected node); global watcher.
 2. Test: registrations.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/health/register.test.tsx` → pass.
 
