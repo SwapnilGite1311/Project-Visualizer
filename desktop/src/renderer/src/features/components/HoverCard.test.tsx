@@ -27,4 +27,31 @@ describe('HoverCard', () => {
     act(() => useAppStore.setState({ hoveredNodeId: null }));
     expect(screen.queryByRole('tooltip')).toBeNull();
   });
+
+  it('hides on a mouse press until another element is hovered', async () => {
+    render(<HoverCard />);
+    act(() => useAppStore.setState({ hoveredNodeId: 'function:app/utils.py#is_valid' }));
+    await act(async () => vi.advanceTimersByTimeAsync(HOVER_DELAY_MS));
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousedown', { button: 2 }));
+    });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    act(() => useAppStore.setState({ hoveredNodeId: 'function:app/utils.py#normalize' }));
+    await act(async () => vi.advanceTimersByTimeAsync(HOVER_DELAY_MS));
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+  });
+
+  it('shows again after leaving and re-entering the same element', async () => {
+    render(<HoverCard />);
+    act(() => useAppStore.setState({ hoveredNodeId: 'function:app/utils.py#is_valid' }));
+    await act(async () => vi.advanceTimersByTimeAsync(HOVER_DELAY_MS));
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousedown'));
+    });
+    act(() => useAppStore.setState({ hoveredNodeId: null }));
+    act(() => useAppStore.setState({ hoveredNodeId: 'function:app/utils.py#is_valid' }));
+    await act(async () => vi.advanceTimersByTimeAsync(HOVER_DELAY_MS));
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+  });
 });

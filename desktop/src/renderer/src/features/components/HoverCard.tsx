@@ -21,9 +21,18 @@ export function HoverCard() {
   const projectId = useAppStore((s) => s.projectId);
   const { x, y } = usePointer();
   const [node, setNode] = useState<GraphNode | null>(null);
+  // A click or right-click (context menu) hides the card until the pointer reaches another element.
+  const [dismissed, setDismissed] = useState<string | null>(null);
+
+  useEffect(() => {
+    const dismiss = () => setDismissed(useAppStore.getState().hoveredNodeId);
+    window.addEventListener('mousedown', dismiss, true);
+    return () => window.removeEventListener('mousedown', dismiss, true);
+  }, []);
 
   useEffect(() => {
     setNode(null);
+    if (!hovered) setDismissed(null);
     if (!hovered || !projectId) return;
     let cancelled = false;
     const timer = setTimeout(() => {
@@ -38,7 +47,7 @@ export function HoverCard() {
     };
   }, [hovered, projectId]);
 
-  if (!node || !hovered) return null;
+  if (!node || !hovered || dismissed === hovered) return null;
   const lines = node.span.end_line > 0 ? `${node.file_path}:${node.span.start_line}–${node.span.end_line}` : node.file_path;
   return (
     <div
