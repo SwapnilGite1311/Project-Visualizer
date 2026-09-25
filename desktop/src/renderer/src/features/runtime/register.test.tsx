@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, configure, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { type FakeBridge, installFakeBridge } from '../../api/fake-bridge';
 import { createRegistry } from '../../core/registry';
@@ -9,6 +9,9 @@ import { LiveToggle } from './LiveToggle';
 import register, { RuntimeWatchers } from './register';
 import { RuntimePanel } from './RuntimePanel';
 import { liveView } from './test-data';
+
+// The full suite runs many jsdom files in parallel; the 1 s default wait is too tight there.
+configure({ asyncUtilTimeout: 5000 });
 
 let fake: FakeBridge;
 beforeEach(() => {

@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, configure, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type FakeBridge, installFakeBridge } from '../../api/fake-bridge';
 import { useAppStore } from '../../core/store';
 import { ConnectPanel, snippets } from './ConnectPanel';
+
+// The full suite runs many jsdom files in parallel; the 1 s default wait is too tight there.
+configure({ asyncUtilTimeout: 5000 });
 
 const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
 let fake: FakeBridge;

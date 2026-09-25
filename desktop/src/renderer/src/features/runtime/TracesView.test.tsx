@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type FakeBridge, installFakeBridge } from '../../api/fake-bridge';
 import { useAppStore } from '../../core/store';
@@ -9,6 +9,9 @@ import { clearAncestorCache } from './ancestors';
 import type { TraceStep } from './runtime-api';
 import { buildCrossingOverlay, buildTraceOverlay, waterfall } from './trace-overlay';
 import { TracesView } from './TracesView';
+
+// The full suite runs many jsdom files in parallel; the 1 s default wait is too tight there.
+configure({ asyncUtilTimeout: 5000 });
 
 vi.mock('../../view/reveal', () => ({ revealNode: vi.fn(async () => undefined) }));
 

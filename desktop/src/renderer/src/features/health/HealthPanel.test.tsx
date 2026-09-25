@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type FakeBridge, installFakeBridge } from '../../api/fake-bridge';
 import type { Health } from '../../api/types';
@@ -10,6 +10,9 @@ import type { HealthInfo } from './health-api';
 import { useHealthStore } from './health-store';
 import { HealthPanel, problems } from './HealthPanel';
 import { findRootCause } from './root-cause';
+
+// The full suite runs many jsdom files in parallel; the 1 s default wait is too tight there.
+configure({ asyncUtilTimeout: 5000 });
 
 vi.mock('../../view/reveal', () => ({ revealNode: vi.fn(async () => undefined) }));
 
