@@ -2,6 +2,7 @@
 #include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <random>
 #include <string>
 
 namespace pv::fs::testing {
@@ -9,9 +10,11 @@ namespace pv::fs::testing {
 class TempTree {
 public:
     TempTree() {
+        // Unique across test processes too (ctest -j runs several at once; an unseeded rand() gave them all the same folder).
         static std::atomic<int> counter{0};
+        std::random_device rd;
         root_ = std::filesystem::temp_directory_path() /
-                ("pv_fs_test_" + std::to_string(counter++) + "_" + std::to_string(std::rand()));
+                ("pv_fs_test_" + std::to_string(counter++) + "_" + std::to_string(rd()) + std::to_string(rd()));
         std::filesystem::create_directories(root_);
     }
     ~TempTree() {
