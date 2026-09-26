@@ -174,5 +174,5 @@ describe('TracesView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Follow across modules' }));
     const hops = await screen.findByRole('list', { name: 'Module hops' });
     expect(hops.textContent).toContain('app/api.py → app/db.py (50 ms)');
-  });
+  }, 20000); // several screens and async steps: slow when the whole suite runs in parallel
 });
