@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/http/ml/dataset.schema.json",
+  "$defs": {
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "kind",
+        "level",
+        "minute",
+        "loc",
+        "complexity",
+        "fan_in",
+        "fan_out",
+        "calls",
+        "errors",
+        "p95_ms",
+        "stalls"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "level": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minute": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "loc": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "complexity": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fan_in": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fan_out": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "p95_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "stalls": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/row"
+  }
+}

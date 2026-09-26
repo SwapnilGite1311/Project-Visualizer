@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/sim/run.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sandbox_id"
+  ],
+  "properties": {
+    "sandbox_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "trace_limit": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 5000
+        }
+      }
+    }
+  }
+}

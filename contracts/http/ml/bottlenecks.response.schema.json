@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/http/ml/bottlenecks.response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bottlenecks"
+  ],
+  "properties": {
+    "bottlenecks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "current_p95_ms",
+          "predicted_p95_ms",
+          "trend_ms_per_hour",
+          "load_sensitivity",
+          "confidence"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "current_p95_ms": {
+            "type": "number",
+            "minimum": 0
+          },
+          "predicted_p95_ms": {
+            "type": "number",
+            "minimum": 0
+          },
+          "trend_ms_per_hour": {
+            "type": "number"
+          },
+          "load_sensitivity": {
+            "type": "number"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    }
+  }
+}

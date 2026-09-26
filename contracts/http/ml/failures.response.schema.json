@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/http/ml/failures.response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "predictions",
+    "method"
+  ],
+  "properties": {
+    "predictions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "probability",
+          "top_factors"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "probability": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "top_factors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "model",
+        "heuristic"
+      ]
+    }
+  }
+}

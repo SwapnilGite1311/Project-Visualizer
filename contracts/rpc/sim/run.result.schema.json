@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/sim/run.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "mode",
+    "traces_total",
+    "traces_failed_real",
+    "traces_failed_sim",
+    "latency_p95_real_ms",
+    "latency_p95_sim_ms",
+    "node_effects",
+    "failed_trace_ids",
+    "broken_node_ids"
+  ],
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": [
+        "replay",
+        "static"
+      ]
+    },
+    "traces_total": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "traces_failed_real": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "traces_failed_sim": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "latency_p95_real_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "latency_p95_sim_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "node_effects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "calls",
+          "failures_real",
+          "failures_sim",
+          "p95_real_ms",
+          "p95_sim_ms"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "calls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failures_real": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failures_sim": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "p95_real_ms": {
+            "type": "number",
+            "minimum": 0
+          },
+          "p95_sim_ms": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "failed_trace_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "broken_node_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/http/ml/recommend.request.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "change_preview": {
+      "type": "object"
+    },
+    "simulation": {
+      "type": "object"
+    },
+    "failure_predictions": {
+      "type": "object"
+    },
+    "forecasts": {
+      "type": "object"
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

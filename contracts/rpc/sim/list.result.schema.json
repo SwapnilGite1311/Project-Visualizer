@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/sim/list.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sandboxes"
+  ],
+  "properties": {
+    "sandboxes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sandbox_id",
+          "view_project_id",
+          "label",
+          "changes_count",
+          "created_ms"
+        ],
+        "properties": {
+          "sandbox_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "view_project_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string"
+          },
+          "changes_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "created_ms": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

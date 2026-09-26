@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/metrics/export.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "out_path"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "out_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "from_ms": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

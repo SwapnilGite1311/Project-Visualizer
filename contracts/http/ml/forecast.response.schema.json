@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/http/ml/forecast.response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "forecasts"
+  ],
+  "properties": {
+    "forecasts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "metric",
+          "points",
+          "predicted_state",
+          "confidence"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "metric": {
+            "type": "string",
+            "minLength": 1
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "t",
+                "v",
+                "lower",
+                "upper"
+              ],
+              "properties": {
+                "t": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "v": {
+                  "type": "number"
+                },
+                "lower": {
+                  "type": "number"
+                },
+                "upper": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "predicted_state": {
+            "$ref": "../../common/enums.schema.json#/$defs/health"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    }
+  }
+}

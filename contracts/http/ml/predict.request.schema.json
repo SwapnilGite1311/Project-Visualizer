@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/http/ml/predict.request.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_key",
+    "rows"
+  ],
+  "properties": {
+    "project_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "$ref": "dataset.schema.json#/$defs/row"
+      }
+    }
+  }
+}

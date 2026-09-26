@@ -1,0 +1,8 @@
+{
+  "sandbox_id": "sb1",
+  "change": {
+    "kind": "set_latency",
+    "node_id": "function:app/utils.py#is_valid",
+    "factor": 3
+  }
+}

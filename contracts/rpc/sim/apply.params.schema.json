@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/sim/apply.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sandbox_id",
+    "change"
+  ],
+  "properties": {
+    "sandbox_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "change": {
+      "$ref": "#/$defs/change"
+    }
+  },
+  "$defs": {
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "delete_node",
+            "remove_edge",
+            "add_edge",
+            "set_latency",
+            "set_error_rate",
+            "rename",
+            "move"
+          ]
+        },
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "edge_kind": {
+          "$ref": "../../common/enums.schema.json#/$defs/edge_kind"
+        },
+        "factor": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 100
+        },
+        "rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "new_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "new_parent_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

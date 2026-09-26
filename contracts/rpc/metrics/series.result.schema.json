@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/metrics/series.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "points"
+  ],
+  "properties": {
+    "points": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "t",
+          "v"
+        ],
+        "properties": {
+          "t": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "v": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  }
+}

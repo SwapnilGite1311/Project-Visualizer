@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/http/ml/forecast.request.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "series",
+    "horizon",
+    "step_ms"
+  ],
+  "properties": {
+    "series": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "node_id",
+          "metric",
+          "points"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "metric": {
+            "type": "string",
+            "minLength": 1
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "t",
+                "v"
+              ],
+              "properties": {
+                "t": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "v": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "horizon": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 168
+    },
+    "step_ms": {
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

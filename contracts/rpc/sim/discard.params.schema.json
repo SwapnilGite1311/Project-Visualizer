@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/sim/discard.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sandbox_id"
+  ],
+  "properties": {
+    "sandbox_id": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

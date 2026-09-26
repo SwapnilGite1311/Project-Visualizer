@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/metrics/series.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "node_id",
+    "metric",
+    "from_ms",
+    "to_ms"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metric": {
+      "type": "string",
+      "enum": [
+        "calls",
+        "errors",
+        "error_rate",
+        "p95_ms",
+        "stalls"
+      ]
+    },
+    "from_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "to_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bucket_ms": {
+      "type": "integer",
+      "minimum": 60000,
+      "maximum": 86400000
+    }
+  }
+}

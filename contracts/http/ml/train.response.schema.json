@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/http/ml/train.response.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "model_version",
+    "samples",
+    "positives",
+    "metrics"
+  ],
+  "properties": {
+    "model_version": {
+      "type": "string"
+    },
+    "samples": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "positives": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method"
+      ],
+      "properties": {
+        "auc": {
+          "type": "number"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "model",
+            "heuristic"
+          ]
+        }
+      }
+    }
+  }
+}

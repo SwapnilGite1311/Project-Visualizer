@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/sim/apply.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ok",
+    "changes_count",
+    "affected"
+  ],
+  "properties": {
+    "ok": {
+      "const": true
+    },
+    "changes_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "affected": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
