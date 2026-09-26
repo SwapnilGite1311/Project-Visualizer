@@ -109,4 +109,69 @@ describe('EngineService', () => {
     await service.stop();
     expect(service.status).toBe('stopped');
   });
+
+  it('uses the pipe when the engine serves one', async () => {
+    const pipeEngines: FakeEngine[] = [];
+    const service = new EngineService('pv-engine', () => new FakeEngine(), () => 0, {
+      pipeSpawner: async (_cmd, pipe) => {
+        expect(pipe).toContain('pv-engine-');
+        const e = new FakeEngine();
+        pipeEngines.push(e);
+        return e;
+      },
+      transport: () => 'pipe',
+    });
+    await service.start();
+    expect(service.transport).toBe('pipe');
+    expect(pipeEngines).toHaveLength(1);
+    expect(service.status).toBe('ready');
+  });
+
+  it('falls back to stdio when the pipe does not work', async () => {
+    const stdioEngines: FakeEngine[] = [];
+    const warnings: string[] = [];
+    let pipeCalls = 0;
+    const service = new EngineService(
+      'pv-engine',
+      () => {
+        const e = new FakeEngine();
+        stdioEngines.push(e);
+        return e;
+      },
+      () => 0,
+      {
+        pipeSpawner: async () => {
+          pipeCalls++;
+          throw new Error('engine has no serve command');
+        },
+        transport: () => 'pipe',
+        log: (_level, msg) => warnings.push(msg),
+      },
+    );
+    await service.start();
+    expect(service.transport).toBe('stdio');
+    expect(stdioEngines).toHaveLength(1);
+    expect(warnings[0]).toMatch(/pipe not available/);
+    // A crash restarts on stdio directly (the pipe is not tried again this session).
+    stdioEngines[0].crash();
+    await flush();
+    await flush();
+    expect(pipeCalls).toBe(1);
+    expect(stdioEngines).toHaveLength(2);
+  });
+
+  it('stays on stdio when asked to', async () => {
+    let pipeCalls = 0;
+    const service = new EngineService('pv-engine', () => new FakeEngine(), () => 0, {
+      pipeSpawner: async () => {
+        pipeCalls++;
+        return new FakeEngine();
+      },
+      transport: () => 'stdio',
+    });
+    await service.start();
+    expect(pipeCalls).toBe(0);
+    expect(service.transport).toBe('stdio');
+  });
 });
+

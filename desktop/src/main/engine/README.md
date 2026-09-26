@@ -22,3 +22,13 @@ When the engine exits unexpectedly, pending requests fail with `engine stopped`,
 ## Logs
 
 The engine writes logs to stderr. Each line is forwarded to the main process console prefixed with `[pv-engine]`.
+
+## Transports
+
+New architecture (R9 "Local server mode"): the main process starts `pv-engine serve --pipe <pipe> --tcp 7700 --parent-pid <desktop pid>` and talks to it over a **named pipe** (Windows `\\.\pipe\pv-engine-<user>-<pid>`) or a **Unix socket** (`<tmp>/pv-engine-<user>-<pid>.sock`). The same engine serves the VS Code extension on TCP 127.0.0.1:7700, so a project is parsed once for both.
+
+- `pipe-transport.ts`: `pipePath()` and `connectPipe()` (retries every 100 ms for up to 5 s).
+- `spawnEngineOverPipe` in `engine-process.ts` starts the server and connects; it fails fast when the engine exits (for example an older engine without `serve`).
+- `EngineService` tries the pipe first and falls back to stdio for the rest of the session when that fails (a warning is logged). `service.transport` tells which one is in use. Set `PV_ENGINE_TRANSPORT=stdio` to force stdio. Fake spawners in tests stay on stdio unless a `pipeSpawner` is passed.
+- `--parent-pid` makes the engine stop by itself if the desktop app dies without shutting it down.
+
