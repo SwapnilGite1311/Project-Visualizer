@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 
 #include "pv/core/error.hpp"
@@ -8,6 +9,18 @@
 namespace {
 
 using pv::rpc::Json;
+
+// The element of the innermost stack frame that is in the project (Python lists it last, the other languages first;
+// the parser marks that end as the origin, which may itself be a library frame).
+std::string innermost_project_node(const std::vector<pv::errmap::Frame>& frames) {
+    if (frames.empty()) return "";
+    const bool innermost_last = frames.back().is_origin;
+    auto find_in = [](auto begin, auto end) {
+        const auto it = std::find_if(begin, end, [](const pv::errmap::Frame& f) { return !f.node_id.empty(); });
+        return it == end ? std::string() : it->node_id;
+    };
+    return innermost_last ? find_in(frames.rbegin(), frames.rend()) : find_in(frames.begin(), frames.end());
+}
 
 int64_t wall_ms() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -38,6 +51,10 @@ void pv_register_errmap(pv::session::Registry& reg) {
                     pv::errmap::map_frames(parsed, g, project->root_path());
                     return 0;
                 });
+                // Agents report an exception on every function it passes through. Only the element where it started gets a
+                // record; the callers' events are the same error propagating (one crash = one entry in the list).
+                const std::string origin = innermost_project_node(parsed.frames);
+                if (!origin.empty() && !m.node_id.empty() && origin != m.node_id) continue;
                 frames = parsed.frames;
                 language = parsed.language;
             }

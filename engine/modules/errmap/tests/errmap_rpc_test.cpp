@@ -49,6 +49,12 @@ TEST(ErrmapRpc, PastedAndRuntimeErrors) {
     EXPECT_EQ(runtime_record["language"], "python");  // first seen without a stack, upgraded by the one with a stack
     EXPECT_EQ(runtime_record["frames"].size(), 3u);
 
+    // The same exception reported again by a caller on its way out (main.py): not a second error.
+    Json propagated = runtime_error("s4", errmap::testing::python_trace(root));
+    propagated["file_path"] = "main.py";
+    env.call("runtime.ingest", Json{{"project_id", pid}, {"events", {propagated}}});
+    EXPECT_EQ(env.call("errors.list", Json{{"project_id", pid}})["errors"].size(), 2u);
+
     env.call("errors.clear", Json{{"project_id", pid}, {"error_id", mapped["error_id"]}});
     EXPECT_EQ(env.call("errors.list", Json{{"project_id", pid}})["errors"].size(), 1u);
     env.call("errors.clear", Json{{"project_id", pid}});
