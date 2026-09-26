@@ -15,6 +15,7 @@ export function toElements(g: ViewGraph): ElementDefinition[] {
       shape: n.shape,
       opacity: n.opacity,
       kind: n.kind,
+      hasChildren: n.hasChildren,
     },
     classes: n.pulse ? 'pulse' : '',
   }));

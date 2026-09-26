@@ -1,6 +1,8 @@
 import type { ViewGraph } from './model';
 
-export type RendererEvent = 'nodeClick' | 'nodeDoubleClick' | 'nodeHover' | 'nodeContext' | 'backgroundClick';
+// zoomIn / zoomOut: the user keeps zooming past the level ("zoom = abstraction"): zoomIn carries the element under the
+// pointer to open, zoomOut asks to go up one level. Renderers emit them; Canvas decides what to open.
+export type RendererEvent = 'nodeClick' | 'nodeDoubleClick' | 'nodeHover' | 'nodeContext' | 'backgroundClick' | 'zoomIn' | 'zoomOut';
 export interface RendererEventPayload { nodeId: string | null; x: number; y: number } // x,y = client (page) coordinates
 export interface GraphRenderer {
   mount(container: HTMLElement): void;

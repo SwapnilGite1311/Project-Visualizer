@@ -2,6 +2,7 @@ import cytoscape, { type Core, type EventObject, type LayoutOptions } from 'cyto
 import dagre from 'cytoscape-dagre';
 import type { ViewGraph } from '../../view/model';
 import type { GraphRenderer, RendererEvent, RendererEventPayload } from '../../view/renderer-types';
+import { SemanticZoom, type ZoomHint } from '../../view/semantic-zoom';
 import { toElements } from './cy-elements';
 import { buildStylesheet } from './cy-style';
 
@@ -34,6 +35,37 @@ export class CyRenderer implements GraphRenderer {
   private resizeFrame: number | null = null;
   private fitting = false;
   private userMoved = false; // the user zoomed or panned since the last automatic fit: keep their view on resize
+  private hintEl: HTMLDivElement | null = null;
+  private wheelTarget: HTMLElement | null = null;
+  private readonly semantic = new SemanticZoom(
+    (event, nodeId, at) => this.listeners.get(event)?.forEach((cb) => cb({ nodeId, x: at.clientX, y: at.clientY })),
+    (hint) => this.showHint(hint),
+  );
+  // Zoom = abstraction: watch the wheel (Cytoscape still zooms the camera) to open or leave levels.
+  private readonly onWheel = (e: WheelEvent) => {
+    const cy = this.cy;
+    const container = this.container;
+    if (!cy || !container) return;
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const hit = cy.nodes().filter((n) => {
+      const b = n.renderedBoundingBox();
+      return x >= b.x1 && x <= b.x2 && y >= b.y1 && y <= b.y2;
+    });
+    let target = null;
+    if (hit.length > 0) {
+      const n = hit[hit.length - 1];
+      const b = n.renderedBoundingBox();
+      target = {
+        id: n.id(),
+        label: String(n.data('label') ?? n.id()),
+        canOpen: Boolean(n.data('hasChildren')),
+        fillsView: b.w >= rect.width * 0.4 || b.h >= rect.height * 0.4,
+      };
+    }
+    this.semantic.wheel(e, cy.zoom(), target);
+  };
 
   constructor(private readonly options: { headless?: boolean } = {}) {
     ensureDagre();
@@ -51,7 +83,7 @@ export class CyRenderer implements GraphRenderer {
       headless: this.options.headless,
       style: buildStylesheet(),
       elements: [],
-      wheelSensitivity: 0.2,
+      wheelSensitivity: 1, // about 5% per wheel step (0.2 was ~1%: zooming, and semantic zoom, felt stuck)
       minZoom: 0.1,
       maxZoom: 3,
     });
@@ -77,6 +109,8 @@ export class CyRenderer implements GraphRenderer {
         });
       });
       this.resizeObserver.observe(container);
+      container.addEventListener('wheel', this.onWheel, { capture: true, passive: true });
+      this.wheelTarget = container;
     }
   }
 
@@ -147,6 +181,11 @@ export class CyRenderer implements GraphRenderer {
   }
 
   destroy(): void {
+    this.wheelTarget?.removeEventListener('wheel', this.onWheel, { capture: true });
+    this.wheelTarget = null;
+    this.semantic.dispose();
+    this.hintEl?.remove();
+    this.hintEl = null;
     this.stopAnimation();
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
@@ -167,6 +206,34 @@ export class CyRenderer implements GraphRenderer {
       this.fitting = false;
     }
     this.userMoved = false;
+    this.semantic.fitted(this.cy.zoom());
+  }
+
+  private showHint(hint: ZoomHint | null): void {
+    if (!hint) {
+      this.hintEl?.remove();
+      this.hintEl = null;
+      return;
+    }
+    if (!this.hintEl) {
+      this.hintEl = document.createElement('div');
+      this.hintEl.setAttribute('role', 'status');
+      Object.assign(this.hintEl.style, {
+        position: 'fixed',
+        zIndex: '60',
+        pointerEvents: 'none',
+        padding: '3px 8px',
+        borderRadius: '6px',
+        fontSize: '12px',
+        color: '#fff',
+        background: 'rgba(17, 24, 39, 0.85)',
+        whiteSpace: 'nowrap',
+      });
+      document.body.appendChild(this.hintEl);
+    }
+    this.hintEl.textContent = hint.text;
+    this.hintEl.style.left = `${hint.x + 14}px`;
+    this.hintEl.style.top = `${hint.y + 14}px`;
   }
 
   private emit(event: RendererEvent, evt: EventObject, noNode = false): void {

@@ -28,6 +28,8 @@ export function Canvas({ rendererFactory }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<GraphRenderer | null>(null);
   const graphRef = useRef<ViewGraph | null>(null);
+  const viewRef = useRef<typeof view>(null);
+  viewRef.current = view;
   const shownViewRef = useRef<unknown>(null);
   const [hasRenderer, setHasRenderer] = useState(true);
   const [menu, setMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null);
@@ -49,6 +51,15 @@ export function Canvas({ rendererFactory }: CanvasProps) {
         if (node?.hasChildren) store().setParent(node.id);
       }),
       renderer.on('nodeHover', (p) => store().hover(p.nodeId)),
+      // Semantic zoom: zooming into an element opens it, zooming out past the level goes up.
+      renderer.on('zoomIn', (p) => {
+        const node = graphRef.current?.nodes.find((n) => n.id === p.nodeId);
+        if (node?.hasChildren) store().setParent(node.id);
+      }),
+      renderer.on('zoomOut', () => {
+        const parent = viewRef.current?.parent;
+        if (parent && parent.id !== 'project:') store().setParent(parent.parent_id || 'project:');
+      }),
       renderer.on('nodeContext', (p) => {
         if (p.nodeId) setMenu({ nodeId: p.nodeId, x: p.x, y: p.y });
       }),

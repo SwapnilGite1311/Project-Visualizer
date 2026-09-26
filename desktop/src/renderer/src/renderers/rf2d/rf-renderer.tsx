@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'r
 import { createRoot, type Root } from 'react-dom/client';
 import type { ViewGraph } from '../../view/model';
 import type { GraphRenderer, RendererEvent, RendererEventPayload } from '../../view/renderer-types';
+import { SemanticZoom, type ZoomHint } from '../../view/semantic-zoom';
 import { FlowEdge, FlowParticles } from './FlowEdge';
 import { PvNode } from './PvNode';
 import { type PvFlowEdge, type PvFlowNode, toFlow } from './rf-elements';
@@ -19,11 +20,12 @@ interface State {
   graph: ViewGraph | null;
   selected: string | null;
   fitRequest: number; // bumped to ask the view to fit
+  hint: ZoomHint | null; // semantic zoom: what keeps zooming will do
 }
 
 // A tiny external store: the imperative GraphRenderer API writes, the React view reads.
 class RendererStore {
-  private state: State = { graph: null, selected: null, fitRequest: 0 };
+  private state: State = { graph: null, selected: null, fitRequest: 0, hint: null };
   private readonly listeners = new Set<() => void>();
   get = () => this.state;
   subscribe = (cb: () => void) => {
@@ -41,9 +43,10 @@ interface ViewProps {
   emit(event: RendererEvent, nodeId: string | null, e: { clientX: number; clientY: number }): void;
   onUserMove(): void;
   onReady(instance: ReactFlowInstance<PvFlowNode, PvFlowEdge>): void;
+  onFitted(zoom: number): void;
 }
 
-function RfView({ store, emit, onUserMove, onReady }: ViewProps) {
+function RfView({ store, emit, onUserMove, onReady, onFitted }: ViewProps) {
   const state = useSyncExternalStore(store.subscribe, store.get);
   const { nodes, edges } = useMemo(
     () => (state.graph ? toFlow(state.graph, state.selected) : { nodes: [], edges: [] }),
@@ -61,13 +64,17 @@ function RfView({ store, emit, onUserMove, onReady }: ViewProps) {
   // Fit only when asked (new level, resize, Ctrl+0) — never on overlay updates, so a user's zoom stays.
   useEffect(() => {
     if (state.fitRequest === 0) return;
-    const run = () => void instance.current?.fitView({ padding: 0.12, maxZoom: MAX_FIT_ZOOM });
+    const run = () => {
+      const i = instance.current;
+      if (!i) return;
+      void i.fitView({ padding: 0.12, maxZoom: MAX_FIT_ZOOM }).then(() => onFitted(i.getZoom()));
+    };
     if (typeof requestAnimationFrame === 'function') {
       const handle = requestAnimationFrame(run); // after React Flow has placed the new nodes
       return () => cancelAnimationFrame(handle);
     }
     run();
-  }, [state.fitRequest]);
+  }, [state.fitRequest, onFitted]);
 
   return (
     <ReactFlow<PvFlowNode, PvFlowEdge>
@@ -106,6 +113,11 @@ function RfView({ store, emit, onUserMove, onReady }: ViewProps) {
       zoomOnDoubleClick={false}
     >
       <FlowParticles />
+      {state.hint && (
+        <div className="pv-rf-zoom-hint" role="status" style={{ left: state.hint.x + 14, top: state.hint.y + 14 }}>
+          {state.hint.text}
+        </div>
+      )}
     </ReactFlow>
   );
 }
@@ -120,6 +132,25 @@ export class RfRenderer implements GraphRenderer {
   private resizeObserver: ResizeObserver | null = null;
   private userMoved = false;
   private instance: ReactFlowInstance<PvFlowNode, PvFlowEdge> | null = null;
+  private readonly semantic = new SemanticZoom(
+    (event, nodeId, at) => this.emit(event, nodeId, at),
+    (hint) => this.store.set({ hint }),
+  );
+  // Zoom = abstraction: watch the wheel (without taking it from React Flow) to open or leave levels.
+  private readonly onWheel = (e: WheelEvent) => {
+    const host = this.host;
+    if (!host || !this.instance) return;
+    const el = (e.target as Element | null)?.closest?.('.react-flow__node');
+    const id = el?.getAttribute('data-id') ?? null;
+    const node = id ? this.store.get().graph?.nodes.find((n) => n.id === id) : undefined;
+    let target = null;
+    if (el && node) {
+      const r = el.getBoundingClientRect();
+      const h = host.getBoundingClientRect();
+      target = { id: node.id, label: node.label, canOpen: node.hasChildren, fillsView: r.width >= h.width * 0.4 || r.height >= h.height * 0.4 };
+    }
+    this.semantic.wheel(e, this.instance.getZoom(), target);
+  };
 
   mount(container: HTMLElement): void {
     const host = document.createElement('div');
@@ -127,6 +158,7 @@ export class RfRenderer implements GraphRenderer {
     host.dataset.renderer = 'rf2d';
     container.appendChild(host);
     this.host = host;
+    host.addEventListener('wheel', this.onWheel, { capture: true, passive: true });
     this.root = createRoot(host);
     this.root.render(
       <ReactFlowProvider>
@@ -135,6 +167,7 @@ export class RfRenderer implements GraphRenderer {
           emit={(event, nodeId, e) => this.emit(event, nodeId, e)}
           onUserMove={() => (this.userMoved = true)}
           onReady={(i) => (this.instance = i)}
+          onFitted={this.onFitted}
         />
       </ReactFlowProvider>,
     );
@@ -173,6 +206,8 @@ export class RfRenderer implements GraphRenderer {
   }
 
   destroy(): void {
+    this.host?.removeEventListener('wheel', this.onWheel, { capture: true });
+    this.semantic.dispose();
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     const root = this.root;
@@ -189,6 +224,8 @@ export class RfRenderer implements GraphRenderer {
   get flow(): ReactFlowInstance<PvFlowNode, PvFlowEdge> | null {
     return this.instance;
   }
+
+  private readonly onFitted = (zoom: number) => this.semantic.fitted(zoom);
 
   private requestFit(): void {
     this.store.set({ fitRequest: this.store.get().fitRequest + 1 });
