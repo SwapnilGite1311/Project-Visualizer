@@ -6,6 +6,10 @@
 - **Version:** `pv-engine --version` prints the engine version.
 - **CLI sub-commands:** `pv-engine <command> [args…]`. Commands are added by modules through `reg.cli.add(...)`, so they appear automatically when a module provides one.
 
+## Notifications
+
+Notifications go through a fan-out notifier (`pv::rpc::FanoutNotifier`); stdio is one sink. `pv-engine serve` (engine module `ipc`) adds one sink per connected client, so every client sees project progress, runtime updates and graph changes.
+
 ## Smoke test
 
 ```bash

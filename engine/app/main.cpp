@@ -9,6 +9,7 @@
 #include "pv/core/version.hpp"
 #include "pv/parse/registry.hpp"
 #include "pv/rpc/cli_table.hpp"
+#include "pv/rpc/fanout.hpp"
 #include "pv/rpc/method_table.hpp"
 #include "pv/rpc/server.hpp"
 #include "pv/session/project_manager.hpp"
@@ -28,8 +29,10 @@ int main(int argc, char** argv) {
     pv::rpc::MethodTable methods;
     pv::rpc::CliTable cli;
     pv::parse::AdapterRegistry adapters;
-    pv::session::ProjectManager projects(adapters, server);
-    pv::session::Registry reg{methods, cli, projects, adapters, server, [&server] { server.request_stop(); }};
+    // Notifications go through a fan-out notifier: stdio is one sink, `pv-engine serve` adds one per connection.
+    pv::rpc::FanoutNotifier fanout;
+    pv::session::ProjectManager projects(adapters, fanout);
+    pv::session::Registry reg{methods, cli, projects, adapters, fanout, [&server] { server.request_stop(); }};
     pv::app::register_all_modules(reg);
 
     if (argc >= 2) {
@@ -45,5 +48,6 @@ int main(int argc, char** argv) {
         return 2;
     }
     pv::core::log_info(std::string("pv-engine ") + pv::core::kEngineVersion + " ready");
+    fanout.add(&server);
     return server.run(methods);
 }
