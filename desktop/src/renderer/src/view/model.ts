@@ -27,7 +27,14 @@ export interface ViewEdge {
   animated: boolean;
   opacity: number;
 }
-export interface ViewGraph { parentId: string; nodes: ViewNode[]; edges: ViewEdge[] }
+export interface LayoutPoint { x: number; y: number; z?: number }
+export interface ViewGraph {
+  parentId: string;
+  nodes: ViewNode[];
+  edges: ViewEdge[];
+  positions?: Record<string, LayoutPoint>; // from layout.compute, for renderers with layout: 'engine'
+  edgePoints?: Record<string, LayoutPoint[]>;
+}
 
 const KIND_COLORS: Record<string, string> = {
   project: '#8b5cf6',

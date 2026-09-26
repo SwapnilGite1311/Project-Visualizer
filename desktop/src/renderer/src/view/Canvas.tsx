@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../core/store';
 import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/EmptyState';
@@ -9,16 +9,22 @@ import { NodeContextMenu } from './NodeContextMenu';
 import type { GraphRenderer } from './renderer-types';
 import { getRenderer } from './renderers';
 import { useLevelView } from './use-level-view';
+import { useViewPrefs } from './view-prefs';
 
 export interface CanvasProps { rendererFactory?: (mode: '2d' | '3d') => GraphRenderer | undefined }
 
-const defaultFactory = (mode: '2d' | '3d') => getRenderer(mode)?.create();
-
-export function Canvas({ rendererFactory = defaultFactory }: CanvasProps) {
+export function Canvas({ rendererFactory }: CanvasProps) {
   const viewMode = useAppStore((s) => s.viewMode);
   const overlays = useAppStore((s) => s.overlays);
   const selectedNodeId = useAppStore((s) => s.selectedNodeId);
-  const { view, loading, error, reload } = useLevelView();
+  const choice = useViewPrefs((s) => (viewMode === '2d' ? s.renderer2d : s.renderer3d));
+  useEffect(() => {
+    void useViewPrefs.getState().load();
+  }, []);
+  // The renderer for this mode (Settings → Graph view); a factory passed in (tests) wins.
+  const entry = useMemo(() => (rendererFactory ? undefined : getRenderer(viewMode, undefined, choice)), [rendererFactory, viewMode, choice]);
+  const factory = useMemo(() => rendererFactory ?? (() => entry?.create()), [rendererFactory, entry]);
+  const { view, layout, loading, error, reload } = useLevelView(entry?.layout === 'engine' ? viewMode : null);
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<GraphRenderer | null>(null);
   const graphRef = useRef<ViewGraph | null>(null);
@@ -29,7 +35,7 @@ export function Canvas({ rendererFactory = defaultFactory }: CanvasProps) {
   // Create the renderer for the current mode.
   useEffect(() => {
     const container = containerRef.current;
-    const renderer = rendererFactory(viewMode);
+    const renderer = factory(viewMode);
     setHasRenderer(Boolean(renderer));
     if (!renderer || !container) return;
     renderer.mount(container);
@@ -58,13 +64,17 @@ export function Canvas({ rendererFactory = defaultFactory }: CanvasProps) {
       renderer.destroy();
       rendererRef.current = null;
     };
-  }, [viewMode, rendererFactory]);
+  }, [viewMode, factory]);
 
   // New level → full redraw; overlay change only → style update.
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer || !view) return;
     const graph = buildViewGraph(view, overlays);
+    if (layout) {
+      graph.positions = layout.positions;
+      graph.edgePoints = layout.edges;
+    }
     graphRef.current = graph;
     if (shownViewRef.current !== view) {
       shownViewRef.current = view;
@@ -73,7 +83,7 @@ export function Canvas({ rendererFactory = defaultFactory }: CanvasProps) {
     } else {
       renderer.updateStyles(graph);
     }
-  }, [view, overlays, viewMode]);
+  }, [view, layout, overlays, viewMode, factory]);
 
   useEffect(() => {
     rendererRef.current?.select(selectedNodeId);

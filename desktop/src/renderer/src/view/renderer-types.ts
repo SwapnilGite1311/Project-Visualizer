@@ -11,4 +11,11 @@ export interface GraphRenderer {
   on(event: RendererEvent, cb: (p: RendererEventPayload) => void): () => void;
   destroy(): void;
 }
-export interface RendererEntry { mode: '2d' | '3d'; create: () => GraphRenderer }
+export interface RendererEntry {
+  mode: '2d' | '3d';
+  create: () => GraphRenderer;
+  id?: string; // default: the renderer's folder name
+  label?: string; // shown in Settings → Graph view
+  preferred?: boolean; // the default for its mode when the user chose nothing
+  layout?: 'renderer' | 'engine'; // 'engine' = positions come from layout.compute in ViewGraph.positions
+}
