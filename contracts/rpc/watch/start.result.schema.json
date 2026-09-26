@@ -7,7 +7,8 @@
     "watching",
     "interval_ms",
     "seeded",
-    "last_change_ms"
+    "last_change_ms",
+    "mode"
   ],
   "properties": {
     "watching": {
@@ -23,6 +24,13 @@
     "last_change_ms": {
       "type": "integer",
       "minimum": 0
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "native",
+        "poll"
+      ]
     }
   }
 }

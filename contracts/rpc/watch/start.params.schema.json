@@ -15,6 +15,14 @@
       "type": "integer",
       "minimum": 250,
       "maximum": 60000
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "native",
+        "poll"
+      ]
     }
   }
 }
