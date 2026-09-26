@@ -27,3 +27,23 @@
 - [ADR-0008 — Monorepo with strict file ownership](../decisions/ADR-0008-monorepo-ownership.md)
 - [ADR-0009 — Right store for each data type](../decisions/ADR-0009-data-stores.md)
 - [ADR-0010 — LLM providers and grounding](../decisions/ADR-0010-llm-grounding.md)
+
+## Review of the new architecture (2026-09-26)
+
+The new client-server design keeps every requirement above satisfied (all local features still work with no server) and adds:
+
+| Requirement | Satisfied by | OK? |
+| --- | --- | --- |
+| Save → map update < 100 ms | native watcher (P4-EWATCH) + incremental re-parse (P4-INCR-005) | planned |
+| 100,000-line Python project parses < 2 s; instant reopen | parallel extraction (P1-BUILDR) + local cache (P4-ECACHE) | planned |
+| One engine for the desktop and VS Code | engine local server, named pipe + TCP 7700 (P4-EIPC) | planned |
+| Code never leaves the machine | no server parsing (P3-SING, P3-SPW superseded); Git import runs locally (P3-DCIMP); runtime upload sends aggregates only (P3-DRTUP) | yes |
+| Offline except AI, sync, billing | direct AI mode kept (D1); all engine features local | yes |
+
+Founder decisions (details in [`incoming/diff.md`](incoming/diff.md) section 6):
+
+- **D1** keep direct AI mode next to the cloud AI gateway.
+- **D2–D6** bend the built desktop and engine toward the diagram (named pipe, TCP 7700, SQLite + LevelDB cache, native watcher, React Flow / R3F with engine layouts), keeping every old path as a fallback.
+- **D7** Qdrant by default, Pinecone adapter for the hosted cloud.
+- **D8** what-if simulation stays in the local engine.
+- **D9** keep Git import (on the desktop); server services stay separate processes grouped on four instances; collector, ingest and parse-worker removed.

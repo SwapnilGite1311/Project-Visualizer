@@ -1,3 +1,5 @@
+Superseded on 2026-09-26 by the new client-server architecture — see `incoming/diff.md`.
+
 # Current server design (v1)
 
 A faithful copy of the server design by Abhishek Awari (Sheet 1, backend design, scaling for 200 users), kept so later changes are traceable. [ARCH-DEPENDENT]

@@ -68,7 +68,7 @@ Internal ports are not in the diagram; the plan keeps the R13 numbers for kept s
 | Vector DB | Qdrant (interface abstracted) | **Pinecone** | changed. Decision **D7** |
 | Time series | none on the server (Prometheus for ops only) | **TimescaleDB** for runtime metrics | **new** |
 | Observability | Prometheus, Grafana, Jaeger, ELK (P2-OBS) | not drawn | **kept** as ops tooling (unchanged; ELK can be left out of small deployments) |
-| Queues | `pv-parse`, `pv-ai`, `pv-runtime`, `pv-ml` | AI job queue only | `pv-parse` **removed**; `pv-ml` merged into `pv-ai`; `pv-runtime` optional |
+| Queues | `pv-parse`, `pv-ai`, `pv-runtime`, `pv-ml` | AI job queue only | `pv-parse` and `pv-runtime` **removed**; `pv-ai` and `pv-ml` kept |
 | Desktop ↔ server | HTTPS REST through the gateway; WebSocket for realtime | HTTPS (AI, auth/sync, runtime upload), **SSE** for AI streaming, **WSS** for notifications | **kept** + SSE |
 | Server ↔ Python | HTTP from ai-gateway / ml-gateway | internal HTTP (FastAPI), streaming | **kept** |
 | Auth flow | RS256 JWT (15 min) + rotating refresh in Redis; GitHub OAuth for desktop; OIDC SSO service | JWT / OAuth2 + Redis session store | **kept** |
