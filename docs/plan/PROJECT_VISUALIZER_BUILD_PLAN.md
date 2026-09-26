@@ -168,16 +168,16 @@ project-visualizer/
 | Area | Choice | Version rule |
 |---|---|---|
 | Engine | C++20, CMake ≥ 3.28, MSVC 2022 (Windows) / GCC 12+ / Clang 16+ | fixed |
-| Engine libs | tree-sitter core `v0.24.4`, tree-sitter-python `v0.23.6`, nlohmann/json `v3.11.3`, GoogleTest `v1.15.2` | pinned in `engine/third_party/*/CMakeLists.txt` |
-| Desktop | Electron (latest stable), electron-vite (latest), React 19, TypeScript 5, Zustand 5, Cytoscape 3 + cytoscape-dagre 2, 3d-force-graph 1, @monaco-editor/react 4 + monaco-editor, Vitest 3, @testing-library/react 16, jsdom | installed by DEPS tasks; exact versions locked in `pnpm-lock.yaml` |
+| Engine libs | tree-sitter core `v0.24.4`, tree-sitter-python `v0.23.6`, nlohmann/json `v3.11.3`, GoogleTest `v1.15.2`; from Phase 4: SQLite `3.46.1` amalgamation and LevelDB `1.23` (local cache, P4-ECACHE) | pinned in `engine/third_party/*/CMakeLists.txt` |
+| Desktop | Electron (latest stable), electron-vite (latest), React 19, TypeScript 5, Zustand 5, Cytoscape 3 + cytoscape-dagre 2, 3d-force-graph 1, @monaco-editor/react 4 + monaco-editor, Vitest 3, @testing-library/react 16, jsdom; from Phase 4 (new architecture): @xyflow/react 12 (React Flow) + d3 modules 3, @react-three/fiber 9 + @react-three/drei 10 (P4-DDEPS) | installed by DEPS tasks; exact versions locked in `pnpm-lock.yaml` |
 | Package manager (JS) | pnpm 10 | fixed |
 | Node.js | 22 LTS or newer (24 LTS recommended, 25 works) | `engines.node >= 22` |
 | Python | 3.12 or newer (runtime agent needs `sys.monitoring`, 3.12+) | fixed |
 | Python tooling | uv (package manager), pytest, ruff | latest |
-| AI service | FastAPI, pydantic v2, pydantic-settings, httpx, anthropic SDK, openai SDK, qdrant-client | via DEPS tasks |
+| AI service | FastAPI, pydantic v2, pydantic-settings, httpx, anthropic SDK, openai SDK, qdrant-client, pinecone (optional vector store adapter) | via DEPS tasks |
 | ML | numpy, pandas, scikit-learn, statsmodels | via P5 DEPS |
 | Server | Fastify 5, zod, pino, pg, ioredis, bullmq, mongodb driver, @aws-sdk/client-s3, jose, @node-rs/argon2 | per-service package.json |
-| Data stores (server) | PostgreSQL 16, Redis 7, MongoDB 7, MinIO (S3 API), Qdrant (vector DB) | docker images pinned in compose files |
+| Data stores (server) | PostgreSQL 16, TimescaleDB 2 (PostgreSQL 16 image, runtime metrics), Redis 7, MongoDB 7, MinIO (S3 API; AWS S3 in production), Qdrant (vector DB; Pinecone optional in the hosted cloud) | docker images pinned in compose files |
 | Observability | Prometheus, Grafana, Jaeger (OTLP), ELK (Elasticsearch, Logstash, Kibana) | pinned in compose files |
 | LLM providers | Anthropic (default model `claude-haiku-4-5-20251001`, configurable) · any OpenAI-compatible endpoint (OpenAI, Ollama local, etc.) | configurable |
 
@@ -268,10 +268,10 @@ Containment is **not** an edge: it is expressed by `parent_id`.
 | Layer | Modules |
 |---|---|
 | 0 | `core` (types, ids, paths, errors, JSON, logging, text utils) |
-| 1 | `graph` (store, level views, span index) · `fs` (file discovery) · `rpc` (JSON-RPC framing, method table, CLI table) · `parse` (tree-sitter wrapper, adapter interface, raw extraction types, registry, project index) |
+| 1 | `graph` (store, level views, span index) · `fs` (file discovery) · `fswatch` (native file change events, P4) · `rpc` (JSON-RPC framing, method table, CLI table) · `parse` (tree-sitter wrapper, adapter interface, raw extraction types, registry, project index) |
 | 2 | `lang_*` (language adapters) · `builder` (raw extraction → graph) |
 | 3 | `session` (projects, background loading, Registry struct) |
-| 4 | feature modules: `graphapi`, `impact`, `context`, `search`, `analysis`, `deps`, `runtime`, `modtrace`, `health`, `errmap`, `rtsync`, `incremental`, `fixsync`, `change`, `grounding`, `mcp`, `plugins`, `gdiff`, `metrics`, `sim` |
+| 4 | feature modules: `graphapi`, `impact`, `context`, `search`, `analysis`, `deps`, `runtime`, `modtrace`, `health`, `errmap`, `rtsync`, `incremental`, `fixsync`, `change`, `grounding`, `mcp`, `plugins`, `ipc`, `cache`, `layout`, `gdiff`, `metrics`, `sim` |
 | 5 | `app` (executable `pv-engine`) |
 
 **Module folder:** `engine/modules/<m>/CMakeLists.txt` contains exactly one call: `pv_add_module(NAME <m> DEPS <targets...>)`. Library target = `pv_<m>`. Sources = all `src/*.cpp` (auto). Public headers in `include/pv/<m>/`. Tests = all `tests/*_test.cpp` (auto) → executable `pv_<m>_tests`. Test fixtures in `tests/fixtures/`, reachable in test code through the macro `PV_TEST_FIXTURES` (a string literal path).
@@ -299,7 +299,7 @@ struct Registry {
 
 **Errors:** throw `pv::core::PvError(code, message)`. The RPC layer turns it into a JSON-RPC error. Codes are in R9.
 
-**Threading:** the RPC loop handles one request at a time on the main thread. Long work (project loading) runs on a background `std::thread`. Every `Project` has a `std::shared_mutex`; readers take `std::shared_lock`, the loader takes `std::unique_lock` only when swapping in the finished graph.
+**Threading:** the RPC loop handles one request at a time on the main thread (in `serve` mode, P4-EIPC, every connection has its own reader thread but all requests pass one dispatch lock, so handlers still run one at a time). Long work (project loading) runs on a background `std::thread`. Every `Project` has a `std::shared_mutex`; readers take `std::shared_lock`, the loader takes `std::unique_lock` only when swapping in the finished graph.
 
 **Build commands (from `engine/`):** configure `cmake --preset dev` · build `cmake --build --preset dev` · all tests `ctest --preset dev` · some tests `ctest --preset dev -R <SuiteName>`. On Linux/macOS use preset `dev-unix` instead of `dev`.
 
@@ -313,6 +313,11 @@ Content-Length: <number of bytes of the JSON body>\r\n
 ```
 Logs go to **stderr only** (never stdout).
 
+**Local server mode (new architecture, Phase 4, P4-EIPC):** `pv-engine serve` accepts several local clients at once with the same framing and messages:
+- the **desktop app** over a **named pipe** `\\.\pipe\pv-engine-<user>-<desktop pid>` (Windows) or a **Unix socket** `<tmp>/pv-engine-<user>-<desktop pid>.sock` (macOS/Linux) — only the same OS user can connect;
+- the **VS Code extension** and other local tools over **TCP `127.0.0.1:7700`** (7701–7709 if busy). The first request on TCP must be `engine.hello {token, client}`; the token and the chosen port are in `~/.project-visualizer/engine.json` `{pid, version, pipe, tcp_port, token}` (readable only by the user, deleted when the engine exits).
+- Notifications go to **every** connected client. stdio stays for the CLI, tests and as the desktop's fallback.
+
 **Messages:** JSON-RPC 2.0. Request `{"jsonrpc":"2.0","id":7,"method":"graph.node","params":{...}}` → response `{"jsonrpc":"2.0","id":7,"result":{...}}` or `{"jsonrpc":"2.0","id":7,"error":{"code":-32002,"message":"node not found: x"}}`. Notification (engine → app, no id): `{"jsonrpc":"2.0","method":"project.progress","params":{...}}`.
 
 **Error codes:** `-32700` parse error · `-32600` invalid request · `-32601` method not found · `-32602` invalid params · `-32603` internal error · `-32001` project not found · `-32002` node not found · `-32003` project not ready · `-32004` I/O error · `-32005` unsupported · `-32006` cancelled · `-32007` conflict.
@@ -323,6 +328,10 @@ Logs go to **stderr only** (never stdout).
 |---|---|---|---|---|
 | `engine.ping` | `{}` | `{version, protocol}` (protocol = 1) | P1-SESS | P1-CRPC |
 | `engine.shutdown` | `{}` | `{ok:true}` then process exits | P1-SESS | P1-CRPC |
+| `engine.hello` | `{token?, client: 'desktop'\|'vscode'\|'tool'}` | `{version, client_id}` | P4-EIPC | P4-CRPC |
+| `engine.info` | `{}` | `{version, pid, pipe, tcp_port, clients:[{client_id, client, transport}]}` | P4-EIPC | P4-CRPC |
+| `editor.reveal` / notif `editor.reveal` | `{file_path, line, column?}` | `{delivered}` (sent to the other clients) | P4-EIPC | P4-CRPC |
+| `editor.open` / notif `editor.open` | `{file_path, line}` | `{delivered}` (sent to `vscode` clients) | P4-EIPC | P4-CRPC |
 | `lang.list` | `{}` | `{languages:[{id, extensions[]}]}` | P1-SESS | P1-CRPC |
 | `project.open` | `{root_path, exclude_globs?[]}` | `{project_id}` | P1-SESS | P1-CRPC |
 | `project.status` | `{project_id}` | `{project_id, root_path, state, files_total, files_done, error_message}` | P1-SESS | P1-CRPC |
@@ -366,8 +375,10 @@ Logs go to **stderr only** (never stdout).
 | `errors.list` | `{project_id}` | `{errors[]}` | P3-ERRMAP | P3-CRPC |
 | `errors.clear` | `{project_id, error_id?}` | `{ok:true}` | P3-ERRMAP | P3-CRPC |
 | `rtsync.level_view` | `{project_id, parent_id?, window_ms?}` | level view + `live{}` per displayed node + `flows[]` | P3-RTSYNC | P3-CRPC |
-| `watch.start` / `watch.stop` / `watch.status` | `{project_id, interval_ms?}` | `{watching, interval_ms}` | P4-INCR | P4-CRPC |
+| `watch.start` / `watch.stop` / `watch.status` | `{project_id, interval_ms?, mode?: 'auto'\|'native'\|'poll'}` | `{watching, interval_ms, mode}` | P4-INCR | P4-CRPC |
 | notif `graph.changed` | `{project_id, files_changed[], nodes_added[], nodes_removed[], nodes_updated[]}` | — | P4-INCR | P4-CRPC |
+| `cache.status` / `cache.clear` | `{project_id}` | `{dir, files, hits, misses, bytes}` / `{ok:true}` | P4-ECACHE | P4-CRPC |
+| `layout.compute` | `{project_id, parent_id?, mode: '2d'\|'3d', rankdir?}` | `{graph_version, cached, positions{id:{x,y,z?}}, edges{id: points[]}}` | P4-ELAYOUT | P4-CRPC |
 | `fixes.list` | `{project_id}` | `{items[]}` | P4-FIXSYNC | P4-CRPC |
 | notif `fixes.changed` | `{project_id, items[]}` | — | P4-FIXSYNC | P4-CRPC |
 | `change.preview` | `{project_id, change}` | `{affected[], risk}` | P4-CHANGE | P4-CRPC |
@@ -420,7 +431,9 @@ export interface Overlay { priority: number; nodes: Record<string, NodeStyle>; e
 ```
 Higher `priority` wins. A feature sets its overlay with `setOverlay('<feature-id>', overlay)` and removes it with `setOverlay('<feature-id>', null)`.
 
-**Renderers:** `renderers/<name>/index.ts` exports `export const renderer: RendererEntry = { mode: '2d' | '3d', create: () => GraphRenderer }`. `GraphRenderer` interface is defined in `view/renderer-types.ts` (P1-DVIEW).
+**Renderers:** `renderers/<name>/index.ts` exports `export const renderer: RendererEntry = { mode: '2d' | '3d', create: () => GraphRenderer }`. `GraphRenderer` interface is defined in `view/renderer-types.ts` (P1-DVIEW). Several renderers may exist per mode (P1-DVIEW-008): the setting `view.renderer2d` / `view.renderer3d` names one by its `id` (default = folder name), else the entry with `preferred: true` wins, else the first. An entry with `layout: 'engine'` receives positions from `layout.compute` in `ViewGraph.positions`. New architecture: `rf2d` (React Flow + D3, P4-DRF2D) and `r3f` (React Three Fiber, P4-DR3F) are preferred; `cy2d` and `fg3d` stay as the "Classic" choice.
+
+**Engine connection (new architecture):** the main process starts `pv-engine serve --pipe <name> --tcp 7700 --parent-pid <pid>` and talks over the named pipe / Unix socket (P1-DENG-008); if that fails it falls back to stdio. The renderer never sees the difference.
 
 **Commands (from `desktop/`):** install `pnpm install` · dev `pnpm dev` · tests `pnpm test` (all) or `pnpm vitest run <path-or-pattern>` · types `pnpm typecheck` · lint `pnpm lint` · build `pnpm build`.
 
@@ -429,7 +442,10 @@ Higher `priority` wins. A feature sets its overlay with `setOverlay('<feature-id
 ### R11. AI architecture (card)
 
 - **MVP (Phase 1):** desktop main process calls the LLM **directly** with the user's own API key (Anthropic or any OpenAI-compatible URL, e.g. local Ollama). The key is encrypted with Electron `safeStorage`.
-- **Phase 4+:** optional *cloud mode*: desktop → server `ai-gateway` → Python AI service → LLM provider. **[ARCH-DEPENDENT]**
+- **Phase 4+:** optional *cloud mode*: desktop → server `ai-gateway` (HTTPS) → Python AI service → LLM provider. Direct mode stays: it is the only AI path with no account and no server (founder decision D1, 2026-09-26).
+- **Streaming (new architecture):** cloud answers can stream back as Server-Sent Events: `event: delta` with `{"text": "…"}` chunks, then one `event: done` whose data is the normal JSON response (citations cleaned), or `event: error` with `{"error":{code,message}}` (schema `contracts/http/ai/stream_event.schema.json`).
+- **Provider fallback:** the Python LLM gateway calls `PV_AI_PROVIDER`; on provider errors, rate limits or timeouts it retries once with `PV_AI_FALLBACK_PROVIDER` (for example Anthropic ↔ OpenAI) when configured.
+- **Vector store:** Qdrant by default (local dev and on-prem); a Pinecone adapter is used when `PV_AI_VECTOR_STORE=pinecone` (hosted cloud only).
 - **Grounding rule:** the LLM only receives facts built by the engine (`context.for_node`, `grounding.*`). Prompts require citations in the form `[[node:<node_id>]]`. Citations are validated against real node ids; invalid ones are removed before showing.
 - **Prompt templates:** Markdown files with `{{variable}}` placeholders in `contracts/prompts/v1/` (P1-PROMPT) and `contracts/prompts/v2/` (P4-PROMPT). A template starts with a `SYSTEM:` section and a `USER:` section separated by a line `---`.
 - **Python AI service:** package `pv_ai`, FastAPI app `pv_ai.app:app`, port `8200`, routers auto-loaded from `pv_ai/features/*/router.py`, settings from env vars `PV_AI_*`.
@@ -448,33 +464,39 @@ Higher `priority` wins. A feature sets its overlay with `setOverlay('<feature-id
 ```
 **Batch upload:** `POST http://127.0.0.1:47100/v1/events`, header `Authorization: Bearer <token>`, body `{"source":{"agent":"python","version":"0.1.0","service":"my-app","project_root":"C:/code/app"},"events":[...]}` → `{"accepted": n}`. The desktop app (P3-DHUB) receives it and forwards to the engine with `runtime.ingest`.
 **OTLP:** the same hub accepts OTLP/HTTP JSON traces at `POST /v1/traces` (any OpenTelemetry-instrumented language) and converts spans to events.
-**Ports:** runtime hub `47100` · VS Code bridge WebSocket `47101`. Both bind to `127.0.0.1` only.
+**Ports:** runtime hub `47100` · engine TCP `7700` for the VS Code extension and local tools (token, P4-EIPC) · VS Code bridge WebSocket `47101` (fallback when the engine port is not available). All bind to `127.0.0.1` only.
+
+**Team runtime upload (new architecture, opt-in per project, P3-DRTUP):** every **5 s** the desktop sends aggregates — never raw events — to the runtime aggregation service: `POST /api/runtime/metrics` (JWT) with `{cloud_project_id, window_end_ms, window_ms, nodes:[{node_id, calls, errors, error_rate, p95_ms, state}], errors:[{type, node_id, count}]}` (values taken from `health.get` and `errors.list`). Arguments, SQL text, stack traces and file contents are never uploaded.
 
 ### R13. Server architecture (card) [ARCH-DEPENDENT]
 
-| Service | Folder | Port | Module |
-|---|---|---|---|
-| Nginx (TLS, load balancer) | `infra/nginx/` | 80/443 | P2-SGW |
-| gateway (rate limit, auth check, routing) | `server/services/gateway` | 8080 | P2-SGW |
-| auth (JWT, sessions, OAuth) | `server/services/auth` | 8101 | P2-SAUTH |
-| projects (orgs, members, projects) | `server/services/projects` | 8102 | P2-SPROJ |
-| sync (graph snapshots) | `server/services/sync` | 8103 | P2-SSYNC |
-| ai-gateway (AI queue, quotas, cache) | `server/services/ai-gateway` | 8104 | P4-SAIGW |
-| collector (remote runtime events) | `server/services/collector` | 8105 | P3-SCOLL |
-| realtime (WebSocket fan-out) | `server/services/realtime` | 8106 | P3-SRT |
-| billing | `server/services/billing` | 8107 | P6-SBILL |
-| licensing (plans, entitlements) | `server/services/licensing` | 8108 | P6-SLIC |
-| ml-gateway | `server/services/ml-gateway` | 8109 | P5-SMLGW |
-| audit | `server/services/audit` | 8110 | P6-SAUDIT |
-| sso (OIDC) | `server/services/sso` | 8111 | P6-SSSO |
-| ingest (cloud Git imports → parse jobs) | `server/services/ingest` | 8112 | P3-SING |
-| feedback (in-app feedback) | `server/services/feedback` | 8113 | P6-SFEED |
-| parse-worker (runs `pv-engine` headless) | `server/services/parse-worker` | none | P3-SPW |
-| Python AI service | `ai/` | 8200 | P4-AI* |
+**New client-server architecture (applied 2026-09-26, Part H):** the desktop does all parsing, graph, impact, health and runtime work; the server only keeps identity, teams, billing, the AI proxy, optional sync and team runtime dashboards. Source code never leaves the user's machine. Services are separate processes grouped on four instances (sizing for 200 users from `docs/architecture/incoming/scaling-summary.md`):
 
-**Stores (dev ports):** PostgreSQL 5432 · Redis 6379 · MongoDB 27017 · MinIO 9000 (console 9001) · Qdrant 6333 · Prometheus 9090 · Grafana **3001** (3000 is often busy) · Jaeger UI 16686 / OTLP HTTP 4318 · Elasticsearch 9200 · Kibana 5601.
+| Group (instance) | Service | Folder | Port | Module |
+|---|---|---|---|---|
+| A. API gateway + auth & teams (2 vCPU / 4 GB) | Nginx (TLS, load balancer, public port 443) | `infra/nginx/` | 80/443 | P2-SGW |
+| A | gateway (rate limit, auth check, routing) | `server/services/gateway` | 8080 | P2-SGW |
+| A | realtime (WebSocket: team sync + notifications) | `server/services/realtime` | 8106 | P3-SRT |
+| A | auth (JWT, sessions, OAuth) | `server/services/auth` | 8101 | P2-SAUTH |
+| A | projects (teams & permissions: orgs, members, projects) | `server/services/projects` | 8102 | P2-SPROJ |
+| A | billing (Stripe) | `server/services/billing` | 8107 | P6-SBILL |
+| A | licensing (plans, entitlements) | `server/services/licensing` | 8108 | P6-SLIC |
+| A | sso (OIDC) | `server/services/sso` | 8111 | P6-SSSO |
+| A | audit | `server/services/audit` | 8110 | P6-SAUDIT |
+| A | feedback (in-app feedback) | `server/services/feedback` | 8113 | P6-SFEED |
+| B. AI gateway + sync (4 vCPU / 8 GB) | ai-gateway (AI queue, quotas, cache, SSE stream relay) | `server/services/ai-gateway` | 8104 | P4-SAIGW |
+| B | ml-gateway | `server/services/ml-gateway` | 8109 | P5-SMLGW |
+| B | sync (snapshots, diff & merge, share & export) | `server/services/sync` | 8103 | P2-SSYNC |
+| C. Python AI (4 vCPU / 16 GB, no GPU) | Python AI/ML service (LLM gateway, embeddings, ML models) | `ai/` | 8200 | P4-AI*, P5-ML* |
+| D. Runtime aggregation (2 vCPU / 4 GB + TimescaleDB) | runtime-agg (aggregator, time series, alert engine) | `server/services/runtime-agg` | 8105 | P3-SRTAGG |
 
-**Common env vars:** `PV_ENV` (dev|test|prod) · `PV_LOG_LEVEL` · `PV_PG_URL` · `PV_REDIS_URL` · `PV_MONGO_URL` · `PV_S3_ENDPOINT` · `PV_S3_ACCESS_KEY` · `PV_S3_SECRET_KEY` · `PV_JWT_PUBLIC_KEY_PATH` · `PV_JWT_PRIVATE_KEY_PATH` (auth only) · `PV_OTLP_URL`.
+**Removed by the new architecture:** collector (P3-SCOLL → P3-SRTAGG), ingest and parse-worker (P3-SING, P3-SPW → Git import runs on the desktop, P3-DCIMP). Their modules are marked SUPERSEDED and were never built.
+
+**Stores (dev ports):** PostgreSQL 5432 (users, teams, projects, billing, audit) · TimescaleDB **5433** (runtime metrics) · Redis 6379 (sessions, queues, AI cache, notifications pub/sub) · MongoDB 27017 (shared graph snapshots) · MinIO 9000 (console 9001; S3 API: exports, reports, shared snapshots) · Qdrant 6333 · Prometheus 9090 · Grafana **3001** (3000 is often busy) · Jaeger UI 16686 / OTLP HTTP 4318 · Elasticsearch 9200 · Kibana 5601.
+
+**Desktop ↔ server:** HTTPS through the gateway for auth, sync, AI requests and runtime upload; AI answers may stream back as SSE; team notifications arrive over WSS (`/api/realtime/ws`, Redis channels `pv:notify:<cloud_project_id>`).
+
+**Common env vars:** `PV_ENV` (dev|test|prod) · `PV_LOG_LEVEL` · `PV_PG_URL` · `PV_TSDB_URL` (runtime-agg only) · `PV_REDIS_URL` · `PV_MONGO_URL` · `PV_S3_ENDPOINT` · `PV_S3_ACCESS_KEY` · `PV_S3_SECRET_KEY` · `PV_JWT_PUBLIC_KEY_PATH` · `PV_JWT_PRIVATE_KEY_PATH` (auth only) · `PV_OTLP_URL`.
 
 **Packages:** every library (`server/libs/<lib>`) and service (`server/services/<svc>`) is an **independent pnpm project** with its own `package.json` and `pnpm-lock.yaml` (no workspace). Services depend on libraries with the `link:` protocol, e.g. `"@pv/common": "link:../../libs/common"`. Libraries use structural (duck-typed) parameter types instead of importing Fastify types, so two copies of a dependency never clash.
 
@@ -482,7 +504,7 @@ Higher `priority` wins. A feature sets its overlay with `setOverlay('<feature-id
 
 **Gateway route file** `server/services/<svc>/gateway-route.json`: `{"prefix":"/api/auth","upstream_env":"PV_AUTH_URL","auth_required":false,"rate_limit_per_min":120}`.
 
-**Queues (BullMQ on Redis):** `pv-parse` (parse-worker) · `pv-ai` (ai-gateway) · `pv-runtime` (collector) · `pv-ml` (ml-gateway).
+**Queues (BullMQ on Redis):** `pv-ai` (ai-gateway) · `pv-ml` (ml-gateway). (`pv-parse` and `pv-runtime` belonged to the removed parse-worker and collector; the names stay reserved in `@pv/queue`.)
 
 ### R14. Testing and verification (card)
 
@@ -1789,6 +1811,34 @@ quote-style = "double"
 1. Title `# Architecture review`; table Requirement · Satisfied by · OK? Rows for PERF-02, PERF-03, PERF-04, SEC-01, SEC-02, SEC-03, SEC-05, REL-01, REL-02, MNT-02, MNT-03, USE-01 (one row each; "Satisfied by" names the subsystem/module; OK = yes).
 2. Section `## Key decisions`: list and link ADR-0001 … ADR-0010.
 **Verify:** `grep -c "| yes" docs/architecture/review.md` → `12`.
+
+#### P0-ARCH-008 — Overview and subsystems for the new architecture
+**Files:** `docs/architecture/overview.md` (edit) · `docs/architecture/subsystems.md` (edit)
+**Refs:** R8, R10, R13
+**Why:** the documents must describe the desktop-first client-server design received on 2026-09-26 (`docs/architecture/incoming/`).
+**Steps:**
+1. `overview.md`: replace the system picture with three parts — desktop client (UI, IPC server and message router in the Electron main process, C++ engine with parsing / analysis / graph / runtime subsystems, local cache, file watcher), server (API gateway + auth & teams, AI gateway + sync, runtime aggregation) and the Python AI/ML service. State the rule "code never leaves the machine; the server only sees graph metadata and AI context snippets".
+2. `subsystems.md`: one section per subsystem named in `docs/architecture/incoming/new-architecture.md`, each with its plan module ids (use R13 and `diff.md` section 5).
+**Verify:** both files mention "named pipe", "7700", "runtime aggregation" and "SSE".
+
+#### P0-ARCH-009 — Data flow and interfaces for the new architecture
+**Files:** `docs/architecture/dataflow.md` (edit) · `docs/architecture/interfaces.md` (edit)
+**Refs:** R9, R11, R12, R13
+**Why:** new transports (pipe, TCP 7700, SSE, WSS) and the reversed runtime direction.
+**Steps:**
+1. `dataflow.md`: flows for open project (cache hit / miss), save a file (native watcher → re-parse one file → `graph.changed` < 100 ms), VS Code reveal via the engine, AI request (direct and cloud with SSE), team runtime upload every 5 s and alerts, share a map, Git import for a team.
+2. `interfaces.md`: table of every interface with transport, port, auth and owning module (R9 local server mode, R12 ports, R13 desktop ↔ server).
+**Verify:** each of the 7 flows has its own `##` heading in `dataflow.md`.
+
+#### P0-ARCH-010 — Deployment and review for the new architecture
+**Files:** `docs/architecture/deployment.md` (edit) · `docs/architecture/review.md` (edit) · `docs/architecture/current-server-design.md` (edit)
+**Refs:** R13
+**Why:** the four-instance deployment and its cost; record what was decided.
+**Steps:**
+1. `deployment.md`: instances A–D from R13 with sizes and monthly cost (from `scaling-summary.md`), managed stores, when to move to Kubernetes (P6-ONPREM).
+2. `review.md`: add `## Review of the new architecture (2026-09-26)` listing founder decisions D1–D9 and their outcome from `diff.md`.
+3. `current-server-design.md`: add a first line "Superseded on 2026-09-26 by the new client-server architecture — see `incoming/diff.md`." and keep the rest as history.
+**Verify:** `grep -c "Superseded" docs/architecture/current-server-design.md` → `1`.
 
 ---
 
@@ -3549,6 +3599,18 @@ private:
 1. Title `# rpc module`; sections `## Framing` (exact byte format), `## Dispatch` (error mapping table: PvError → its code; json exception → -32602; other → -32603), `## Notifications` (thread-safe; from any thread), `## Adding a method` (in your module's `src/register.cpp`: `reg.methods.add("ns.name", [&reg](const Json& p) { … });`).
 **Verify:** `grep -c "^## " engine/modules/rpc/README.md` → `4`.
 
+#### P1-RPC-009 — Connections and fan-out notifier (new architecture)
+**Files:** `engine/modules/rpc/include/pv/rpc/fanout.hpp` (create) · `engine/modules/rpc/src/fanout.cpp` (create) · `engine/modules/rpc/include/pv/rpc/connection.hpp` (create) · `engine/modules/rpc/src/connection.cpp` (create) · `engine/modules/rpc/tests/connection_test.cpp` (create) · `engine/modules/rpc/README.md` (edit)
+**Refs:** R8, R9
+**Why:** the engine must serve several local clients (desktop over a pipe, VS Code over TCP 7700) with one method table and send notifications to all of them.
+**Steps:**
+1. `fanout.hpp`: `class FanoutNotifier : public Notifier { public: int add(Notifier* sink); void remove(int id); std::size_t size() const; void notify(const std::string& method, const Json& params) override; };` — thread-safe (one `std::mutex`); `notify` copies the sink list under the lock, then calls each sink outside it; a sink that throws is removed.
+2. `connection.hpp`: `struct ByteStream { virtual ~ByteStream() = default; virtual std::size_t read_some(char* buf, std::size_t n) = 0; /* 0 = closed */ virtual void write_all(const char* data, std::size_t n) = 0; virtual void close() = 0; };` and `class Connection : public Notifier { public: using Gate = std::function<std::optional<Json>(const Json& request)>; Connection(std::unique_ptr<ByteStream> stream, std::mutex& dispatch_mutex, Gate gate = {}); int run(const MethodTable& table); void notify(const std::string& method, const Json& params) override; void close(); };`.
+3. `connection.cpp`: wrap the `ByteStream` in a small `std::streambuf` so `read_message` / `write_message` from `framing.hpp` are reused unchanged; `run` reads messages until the stream closes; for each request: if `gate` returns a JSON error object, answer with it; otherwise lock `dispatch_mutex` and call the same dispatcher the stdio server uses; writes are serialized with an internal mutex (responses and notifications may come from different threads).
+4. Tests (suite `RpcConnection`): an in-memory `ByteStream` pair; a request gets its response; a gate that rejects `graph.node` produces the error; `FanoutNotifier` with two recording sinks delivers to both; after `remove` only one receives.
+5. README: section `## Connections and fan-out` describing both classes.
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R RpcConnection` → pass.
+
 ---
 
 ### MODULE P1-PARSE — Parsing framework (language-neutral)
@@ -4398,6 +4460,16 @@ BuildResult build_project(const parse::AdapterRegistry& adapters, const std::str
 1. Title `# builder module`; sections `## Pipeline` (the 7 steps of P1-BUILDR-009), `## Bindings` (how local names map to nodes), `## Call resolution` (plain, self, other-object rules), `## Metrics` (formulas of P1-BUILDR-008).
 **Verify:** `grep -c "^## " engine/modules/builder/README.md` → `4`.
 
+#### P1-BUILDR-012 — Extraction cache hook (new architecture)
+**Files:** `engine/modules/builder/include/pv/builder/extraction_cache.hpp` (create) · `engine/modules/builder/src/extraction_cache.cpp` (create) · `engine/modules/builder/src/extract_all.cpp` (edit) · `engine/modules/builder/tests/extraction_cache_test.cpp` (create)
+**Refs:** R8
+**Why:** the local cache (P4-ECACHE) keeps extractions of unchanged files so reopening a project does not parse them again; the builder only offers the hook.
+**Steps:**
+1. `extraction_cache.hpp`: `class ExtractionCache { public: virtual ~ExtractionCache() = default; virtual std::optional<parse::FileExtraction> lookup(const std::string& abs_path, const std::string& language, const std::string& content_hash) = 0; virtual void store(const std::string& abs_path, const std::string& language, const std::string& content_hash, const parse::FileExtraction& fx) = 0; };` plus `void set_extraction_cache(ExtractionCache* cache);` (nullptr = off) and `ExtractionCache* extraction_cache();` and `std::string content_hash(const std::string& bytes);` (64-bit FNV-1a as 16 hex chars).
+2. `extract_all.cpp`: when a cache is set, read the file bytes once, compute the hash, try `lookup`; on a hit use it (and skip the parser); on a miss parse as today and `store` the result. Behaviour without a cache is unchanged.
+3. Tests (suite `BuilderExtractionCache`): a fake cache counting lookups/stores; the second `extract_all` over the same files has only hits and returns equal extractions.
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R Builder` → all pass.
+
 ---
 
 ### MODULE P1-SESS — Projects, background loading and registry
@@ -4729,6 +4801,17 @@ int main(int argc, char** argv) {
 **Steps:**
 1. Title `# pv-engine`; sections `## Run` (stdio mode, `--version`, CLI sub-commands appear automatically from modules), `## Smoke test` (command), `## Debugging` (send one framed request with a small Python snippet; logs are on stderr; set level with future flag), `## Where modules are wired` (generated `registry_gen.cpp`).
 **Verify:** `grep -c "^## " engine/app/README.md` → `4`.
+
+#### P1-EAPP-004 — Fan-out notifier in main (new architecture)
+**Files:** `engine/app/main.cpp` (edit) · `engine/app/README.md` (edit)
+**Refs:** R8, R9
+**Why:** notifications must reach every client once `pv-engine serve` (P4-EIPC) accepts connections.
+**Needs:** P1-RPC-009
+**Steps:**
+1. Create `pv::rpc::FanoutNotifier fanout;` before the `ProjectManager`; pass `fanout` (not the stdio server) to `ProjectManager` and as `Registry::notifier`.
+2. Only when no CLI command is given (the stdio loop): `fanout.add(&server)` before `server.run(methods)`. CLI commands add their own sinks (the `serve` command does this through `dynamic_cast<pv::rpc::FanoutNotifier*>(&reg.notifier)`).
+3. README: one paragraph "Notifications go through a fan-out notifier; stdio is one sink."
+**Verify:** `cd engine && cmake --build --preset dev && python app/smoke_test.py build/app/Debug/pv-engine.exe` → passes as before.
 
 ---
 
@@ -5453,6 +5536,19 @@ export class EngineService {
 **Steps:**
 1. Title `# Engine client (main process)`; sections `## Files` (one line per file), `## Restart policy` (3 restarts per 60 s), `## Locating the engine` (order from P1-DENG-004), `## Logs` (engine stderr is prefixed with `[pv-engine]`).
 **Verify:** `grep -c "^## " desktop/src/main/engine/README.md` → `4`.
+
+#### P1-DENG-008 — Engine connection over a named pipe (new architecture)
+**Files:** `desktop/src/main/engine/pipe-transport.ts` (create) · `desktop/src/main/engine/pipe-transport.test.ts` (create) · `desktop/src/main/engine/engine-process.ts` (edit) · `desktop/src/main/engine/engine-service.ts` (edit) · `desktop/src/main/engine/engine-service.test.ts` (edit) · `desktop/src/main/engine/README.md` (edit)
+**Refs:** R9, R10
+**Why:** the new architecture connects the UI to the engine over a named pipe / Unix socket, and the same engine serves VS Code on TCP 7700.
+**Needs:** P4-EIPC
+**Steps:**
+1. `pipe-transport.ts`: `pipePath(pid = process.pid): string` → Windows `\\.\pipe\pv-engine-<user>-<pid>`, else `<os.tmpdir()>/pv-engine-<user>-<pid>.sock` (`<user>` = `os.userInfo().username` with non `[A-Za-z0-9_-]` replaced by `_`); `connectPipe(path, timeoutMs = 5000): Promise<net.Socket>` retries every 100 ms until the engine listens.
+2. `engine-process.ts`: when setting `engine.transport` is not `'stdio'` (default `'pipe'`), spawn `pv-engine serve --pipe <pipePath()> --tcp 7700 --parent-pid <process.pid>`; the returned process object exposes `input`/`output` streams that are the socket instead of stdin/stdout (stderr stays the log).
+3. `engine-service.ts`: if the pipe connection fails or the engine exits within 5 s with `unknown command: serve`, log a warning and restart once with stdio (old behaviour). Restart-on-crash keeps working for both transports. Expose `transport: 'pipe' | 'stdio'` in the status.
+4. Tests: `pipePath` on both platforms; fallback to stdio when `connectPipe` rejects (fake process factory).
+5. README: "Transports" section.
+**Verify:** `cd desktop && pnpm vitest run src/main/engine` → all pass.
 
 ---
 
@@ -6240,6 +6336,19 @@ export interface RendererEntry { mode: '2d' | '3d'; create: () => GraphRenderer 
 1. `export default function register(app: AppRegistry)`: `addPanel({ id: 'canvas', title: 'Map', area: 'center', order: 0, component: Canvas })`; `addCommand({ id: 'canvas.fit', title: 'Fit map to screen', shortcut: 'Ctrl+0', run: () => canvasBus.fit() })`.
 2. Test: calling `register` on a fresh registry adds the panel and command.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/canvas/register.test.tsx` → pass.
+
+#### P1-DVIEW-008 — Renderer choice and engine layouts (new architecture)
+**Files:** `desktop/src/renderer/src/view/renderer-types.ts` (edit) · `desktop/src/renderer/src/view/renderers.ts` (edit) · `desktop/src/renderer/src/view/renderers.test.ts` (edit) · `desktop/src/renderer/src/view/model.ts` (edit) · `desktop/src/renderer/src/view/use-level-view.ts` (edit) · `desktop/src/renderer/src/view/use-level-view.test.tsx` (edit) · `desktop/src/renderer/src/view/Canvas.tsx` (edit) · `desktop/src/renderer/src/features/canvas/GraphViewSettings.tsx` (create) · `desktop/src/renderer/src/features/canvas/register.tsx` (edit) · `desktop/src/renderer/src/features/canvas/register.test.tsx` (edit)
+**Refs:** R9, R10
+**Why:** the new architecture draws 2D with React Flow + D3 and 3D with React Three Fiber, laid out by the engine; the classic renderers stay selectable.
+**Steps:**
+1. `RendererEntry` gets optional `id?: string` (default: folder name), `label?: string`, `preferred?: boolean`, `layout?: 'renderer' | 'engine'` (default `'renderer'`). `ViewGraph` gets optional `positions?: Record<string, { x: number; y: number; z?: number }>` and `edgePoints?: Record<string, { x: number; y: number }[]>`.
+2. `renderers.ts`: `listRenderers(mode?)` returns entries with their ids; `getRenderer(mode, modules?, choice?)` → the entry whose id equals `choice`, else the first `preferred`, else the first.
+3. `use-level-view.ts`: when the active renderer has `layout: 'engine'`, call `rpc('layout.compute', {project_id, parent_id, mode})` after the level view and put the result into `positions` / `edgePoints`; on error keep going without positions (the renderer then uses its own fallback layout).
+4. `Canvas.tsx`: read settings `view.renderer2d` / `view.renderer3d` (via `invoke('pv:settings.get', …)`) and re-create the renderer when they change.
+5. `GraphViewSettings.tsx` + `register.tsx`: settings section "Graph view" (order 15) with one select per mode listing `label ?? id`.
+6. Tests: choice / preferred / first order; the hook calls `layout.compute` only for engine-layout renderers; the settings section is registered.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/view src/renderer/src/features/canvas` → all pass.
 
 ---
 
@@ -8554,6 +8663,18 @@ type Counter interface {
 1. Title `# VS Code bridge`; sections `## Discovery` (bridge.json location and fields), `## Authentication` (hello + token within 5 s), `## Messages` (table), `## Security` (localhost only; token file readable only by the user).
 **Verify:** `grep -c "^## " desktop/src/main/bridge/README.md` → `4`.
 
+#### P2-DBRIDGE-007 — VS Code link through the engine (new architecture)
+**Files:** `desktop/src/renderer/src/features/bridge/bridge-watcher.ts` (edit) · `desktop/src/renderer/src/features/bridge/BridgeStatus.tsx` (edit) · `desktop/src/renderer/src/features/bridge/bridge.test.tsx` (edit) · `desktop/src/main/bridge/README.md` (edit)
+**Refs:** R9, R12
+**Why:** in the new architecture VS Code talks to the engine on TCP 7700; the map must react to `editor.reveal` from there and send `editor.open` there. The 47101 bridge stays as the fallback.
+**Needs:** P4-EIPC
+**Steps:**
+1. `bridge-watcher.ts`: subscribe to engine notifications (`onNotification`); `editor.reveal {file_path, line}` → the same reveal path used for bridge `reveal` messages. "Open in VS Code" first calls `rpc('editor.open', {file_path, line})`; when the result has `delivered: 0` (no VS Code on the engine) use the 47101 bridge as before.
+2. `BridgeStatus.tsx`: "VS Code: connected (engine)" when `engine.info` lists a `vscode` client, "(bridge)" when only the bridge has one, else "not connected".
+3. Tests with a fake bridge: engine path used when delivered > 0; fallback otherwise; reveal notification selects the node.
+4. README: "Engine link and fallback" section.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/bridge` → pass.
+
 ---
 
 ### MODULE P2-VSC — VS Code extension
@@ -8638,6 +8759,18 @@ type Counter interface {
 2. `CHANGELOG.md`: `## 0.1.0` — first release.
 3. Manual test: `pnpm package` → install the `.vsix` (Extensions → … → Install from VSIX); start the desktop app with the fixture open; in VS Code open `app/utils.py` from the fixture, put the cursor in `is_valid`, run "Show on map" → the desktop map reveals `is_valid`; in the desktop app use "Open in VS Code (extension)" on `normalize` → VS Code jumps to line 4.
 **Verify:** manual test passes; `grep -c "^## " vscode-extension/README.md` → `4`.
+
+#### P2-VSC-006 — Connect to the engine on TCP 7700 (new architecture)
+**Files:** `vscode-extension/src/engine-client.ts` (create) · `vscode-extension/src/engine-client.test.ts` (create) · `vscode-extension/src/extension.ts` (edit) · `vscode-extension/README.md` (edit)
+**Refs:** R9, R12
+**Why:** the extension uses the same running engine as the desktop ("parse once"), as drawn in the new architecture.
+**Needs:** P4-EIPC
+**Steps:**
+1. `engine-client.ts`: `readEngineInfo(home = os.homedir())` reads `~/.project-visualizer/engine.json` (missing or stale pid → null); `class EngineClient { connect(info): Promise<void>; request(method, params): Promise<unknown>; onNotification(cb): () => void; dispose(): void }` over `net.connect(tcp_port, '127.0.0.1')` with the LSP framing (copy the tiny framing code — the extension has no shared package); first request `engine.hello {token, client: 'vscode'}`.
+2. `extension.ts`: on activation try the engine first; "Show on map" → `editor.reveal {file_path, line}`; notification `editor.open` → open the file at the line; if the engine is not available fall back to the existing bridge client (47101). Status bar text: "PV: engine" / "PV: bridge" / "PV: off".
+3. Tests (Vitest, pure logic): framing round-trip; stale `engine.json` ignored; hello sent first.
+4. README: how the extension finds the engine; fallback.
+**Verify:** `cd vscode-extension && pnpm test` → pass.
 
 ---
 
@@ -9312,7 +9445,7 @@ CREATE EXTENSION IF NOT EXISTS citext;
 - **Lane:** INFRA
 - **Owns:** `infra/compose/compose.base.yml` · `infra/compose/up.sh` · `infra/compose/down.sh` · `infra/compose/README.md` · `infra/compose/.env.example`
 - **Starts after:** P1-SIGN
-- **Goal:** PostgreSQL, Redis, MongoDB, MinIO and Qdrant with one command; other modules add their own `compose.<name>.yml`.
+- **Goal:** PostgreSQL, TimescaleDB, Redis, MongoDB, MinIO and Qdrant with one command; other modules add their own `compose.<name>.yml`.
 
 #### P2-INFRA-001 — Base compose file
 **Files:** `infra/compose/compose.base.yml` (create)
@@ -9347,8 +9480,15 @@ services:
     image: qdrant/qdrant:latest
     ports: ["6333:6333"]
     volumes: [qdrantdata:/qdrant/storage]
+  timescale:
+    image: timescale/timescaledb:latest-pg16
+    environment: { POSTGRES_USER: pv, POSTGRES_PASSWORD: pv, POSTGRES_DB: pv_metrics }
+    ports: ["5433:5432"]
+    volumes: [tsdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U pv"], interval: 5s, retries: 20 }
 volumes:
   pgdata: {}
+  tsdata: {}
   mongodata: {}
   miniodata: {}
   qdrantdata: {}
@@ -9386,7 +9526,7 @@ docker compose -p pv "${args[@]}" up -d --build "$@"
 **Refs:** R13
 **Why:** confirm Docker works on the dev machine (Docker was not installed at planning time).
 **Steps:**
-1. Install Docker Desktop (P0-ENV guide); run `bash infra/compose/up.sh`; wait until `docker ps` shows all five healthy/running; run the migration from P2-SDB-004.
+1. Install Docker Desktop (P0-ENV guide); run `bash infra/compose/up.sh`; wait until `docker ps` shows all six healthy/running; run the migration from P2-SDB-004.
 **Verify:** migration output shows `migrations up to date` on a second run.
 
 ---
@@ -9849,7 +9989,7 @@ CREATE INDEX IF NOT EXISTS snapshots_project_idx ON snapshots(project_id, create
 **Steps:**
 1. `POST /api/sync/projects/:projectId/snapshots` (member) body `{label: string 1–200, snapshot: {format: 'pv-snapshot-1', engine_version, label, nodes: array, edges: array}}` with Fastify `bodyLimit = PV_SYNC_MAX_MB MB` → store blob + meta (`size_bytes` = JSON byte length) → 201 meta.
 2. `GET /api/sync/projects/:projectId/snapshots` (viewer) → `{snapshots: Meta[]}`; `GET /api/sync/snapshots/:id` (viewer of its project) → `{meta, snapshot}`; `DELETE /api/sync/snapshots/:id` (admin or the creator) → 204.
-3. Internal (for the Phase 3 parse-worker): `POST /internal/projects/:projectId/snapshots` guarded by `requireInternal(PV_INTERNAL_TOKEN)`, body `{label, created_by (uuid), snapshot}` → same storage as the public upload → 201 meta.
+3. Internal (service-to-service uploads): `POST /internal/projects/:projectId/snapshots` guarded by `requireInternal(PV_INTERNAL_TOKEN)`, body `{label, created_by (uuid), snapshot}` → same storage as the public upload → 201 meta.
 4. Tests with memory stores and a fake access client: upload/list/get/delete; wrong format → 400; viewer cannot upload → 403; internal upload without the internal token → 401, with it → 201.
 **Verify:** `cd server/services/sync && pnpm test` → pass.
 
@@ -9861,6 +10001,19 @@ CREATE INDEX IF NOT EXISTS snapshots_project_idx ON snapshots(project_id, create
 1. Route file `[{"prefix":"/api/sync","upstream_env":"PV_SYNC_URL","auth_required":true,"rate_limit_per_min":60}]`; others per template (port 8103; depends on postgres and mongo).
 2. README: endpoints, size limit, privacy ("snapshots contain names, paths, spans and metrics — never source code").
 **Verify:** `pnpm dev` then `curl localhost:8103/healthz` → ok.
+
+#### P2-SSYNC-006 — Diff, merge, export and notifications (new architecture)
+**Files:** `server/services/sync/src/diff.ts` (create) · `server/services/sync/src/export.ts` (create) · `server/services/sync/src/notify.ts` (create) · `server/services/sync/src/diff.test.ts` (create) · `server/services/sync/src/routes.ts` (edit) · `server/services/sync/src/config.ts` (edit) · `server/services/sync/package.json` (edit) · `server/services/sync/pnpm-lock.yaml` (edit) · `server/services/sync/README.md` (edit)
+**Refs:** R13
+**Why:** the new "Sync & collaboration" group has graph diff & merge, share & export and notifications.
+**Steps:**
+1. `pnpm add @aws-sdk/client-s3@3 @aws-sdk/s3-request-presigner@3 ioredis@5`. Config adds `PV_S3_ENDPOINT`, `PV_S3_ACCESS_KEY`, `PV_S3_SECRET_KEY`, `PV_S3_BUCKET` (default `pv-exports`), `PV_REDIS_URL?`.
+2. `diff.ts`: `diffSnapshots(a, b)` → `{nodes_added[], nodes_removed[], nodes_changed[], edges_added[], edges_removed[]}` by id (changed = any of `metrics`, `health`, `span`, `parent_id` differs); `mergeSnapshots(base, ours, theirs)` → `{snapshot, conflicts[]}`: three-way by id, changes from both sides are applied; a node changed differently on both sides keeps `theirs` and is listed in `conflicts`.
+3. `export.ts`: `exportSnapshot(meta, snapshot, format: 'json' | 'csv', s3)` → puts `exports/<id>.<format>` (CSV = one row per node: id, kind, name, file_path, loc, complexity, fan_in, fan_out, health) and returns a pre-signed GET URL valid 24 h.
+4. `notify.ts`: `publish(projectId, message)` → Redis `PUBLISH pv:notify:<projectId> <json>`; no-op when `PV_REDIS_URL` is empty. Call it after an upload (`{type:'snapshot.shared', project_id, snapshot_id, label, by}`) and after a merge (`type:'snapshot.merged'`).
+5. Routes: `GET /api/sync/snapshots/:a/diff/:b` (viewer of both) → diff; `POST /api/sync/projects/:projectId/merge {base_id, ours_id, theirs_id, label}` (member) → 201 `{meta, conflicts}`; `POST /api/sync/snapshots/:id/export {format}` (viewer) → `{url, expires_at}`.
+6. Tests: diff of two small snapshots; merge with one conflict; export with a fake S3 client; publish called once on upload.
+**Verify:** `cd server/services/sync && pnpm test` → pass.
 
 ---
 
@@ -9877,8 +10030,9 @@ CREATE INDEX IF NOT EXISTS snapshots_project_idx ON snapshots(project_id, create
 **Why:** one HTTP client with automatic token refresh.
 **Steps:**
 1. `class CloudClient { constructor(deps: { baseUrl(): string; getTokens(): { access: string; refresh: string } | null; setTokens(t: { access: string; refresh: string } | null): void; fetchImpl?: typeof fetch }); request<T>(method: string, path: string, body?: unknown, opts?: { auth?: boolean }): Promise<T> }` — JSON in/out; with `auth` (default true) send `Authorization: Bearer <access>`; on 401 call `POST /api/auth/refresh` once with the refresh token, save the new tokens and retry; refresh failure → clear tokens and throw `Error('Please sign in again')` with `code 'signed_out'`; other errors throw `Error(body.error.message)` with `code = body.error.code`.
-2. Convenience methods: `register`, `login` (saves tokens), `exchange(code)` (saves tokens), `logout`, `me`, `listOrgs`, `createOrg`, `listProjects(orgId)`, `createProject(orgId, name)`, `uploadSnapshot(projectId, label, snapshot)`, `listSnapshots(projectId)`, `getSnapshot(id)`.
-3. Tests with a fake fetch: refresh on 401 then success; refresh failure clears tokens.
+2. `stream(path: string, body: unknown, onEvent: (event: string, data: unknown) => void): Promise<void>` — `POST` with `Accept: text/event-stream`, same auth/refresh rules, parses Server-Sent Events (`event:` / `data:` lines, blank line ends an event; `data` is JSON) and resolves after the `done` event (an `error` event rejects with its code) — used by cloud AI streaming (R11).
+3. Convenience methods: `register`, `login` (saves tokens), `exchange(code)` (saves tokens), `logout`, `me`, `listOrgs`, `createOrg`, `listProjects(orgId)`, `createProject(orgId, name)`, `uploadSnapshot(projectId, label, snapshot)`, `listSnapshots(projectId)`, `getSnapshot(id)`.
+4. Tests with a fake fetch: refresh on 401 then success; refresh failure clears tokens; `stream` parses two `delta` events and a `done` event.
 **Verify:** `cd desktop && pnpm vitest run src/main/cloud/cloud-client.test.ts` → all pass.
 
 #### P2-DCLOUD-002 — GitHub login via loopback
@@ -10044,13 +10198,16 @@ CREATE INDEX IF NOT EXISTS snapshots_project_idx ON snapshots(project_id, create
 | Wave | Modules (parallel inside a wave) |
 |---|---|
 | 1 | P3-CRPC · P3-AGPY · P3-LCPP · P3-LRUST · P3-LCS |
-| 2 | P3-RTCORE · P3-AGNODE · P3-SCOLL |
-| 3 | P3-HEALTH · P3-MODTR · P3-ERRMAP · P3-DHUB · P3-SRT · P3-SING |
-| 4 | P3-RTSYNC · P3-SPW |
-| 5 | P3-DRT · P3-DCIMP · P3-DREMOTE |
+| 2 | P3-RTCORE · P3-AGNODE · P3-SRTAGG · P3-SRT |
+| 3 | P3-HEALTH · P3-MODTR · P3-ERRMAP · P3-DHUB |
+| 4 | P3-RTSYNC |
+| 5 | P3-DRT · P3-DCIMP |
 | 6 | P3-DHEALTH · P3-DERR · P3-RTE2E |
-| 7 | P3-UDOC |
-| 8 | P3-SIGN |
+| 7 | P3-DRTUP |
+| 8 | P3-UDOC |
+| 9 | P3-SIGN |
+
+Superseded by the new architecture (not built, not scheduled): P3-SCOLL, P3-SING, P3-SPW, P3-DREMOTE.
 
 **Shared runtime rules (used by several modules):**
 - Events follow card R12. The engine keeps a per-project ring buffer of the last **50,000** mapped events.
@@ -11256,12 +11413,13 @@ public interface IGreeter
 
 ---
 
-### MODULE P3-SCOLL — Collector service (remote runtime events) [ARCH-DEPENDENT]
+### MODULE P3-SCOLL — Collector service (remote runtime events) (SUPERSEDED by P3-SRTAGG)
 - **Type:** CODE
 - **Lane:** SERVER
 - **Owns:** `server/services/collector/**` · `server/db/migrations/0040_collector_sources.sql` · `infra/compose/compose.collector.yml` · `infra/observability/prometheus/targets/collector.json`
 - **Starts after:** P2-SIGN
-- **Goal:** accept runtime batches from deployed agents (source tokens) and publish them to Redis for live viewers (current design: runtime ingestion agent → module tracing).
+- **Superseded:** 2026-09-26 by the new architecture (runtime data now flows desktop → runtime aggregation). Do not build.
+- **Goal:** (old) accept runtime batches from deployed agents (source tokens) and publish them to Redis for live viewers (current design: runtime ingestion agent → module tracing).
 
 #### P3-SCOLL-001 — Package, config, migration
 **Files:** `server/services/collector/package.json` (create) · `server/services/collector/pnpm-lock.yaml` (create) · `server/services/collector/tsconfig.json` (create) · `server/services/collector/.env.example` (create) · `server/services/collector/src/config.ts` (create) · `server/db/migrations/0040_collector_sources.sql` (create)
@@ -11316,12 +11474,12 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 
 ---
 
-### MODULE P3-SRT — Realtime service (WebSocket fan-out) [ARCH-DEPENDENT]
+### MODULE P3-SRT — Realtime service (team sync and notifications WebSocket) [ARCH-DEPENDENT]
 - **Type:** CODE
 - **Lane:** SERVER
 - **Owns:** `server/services/realtime/**` · `infra/compose/compose.realtime.yml` · `infra/observability/prometheus/targets/realtime.json`
-- **Starts after:** P3-SCOLL
-- **Goal:** the current design's WebSocket server: authenticated clients subscribe to projects and receive live messages from Redis.
+- **Starts after:** P2-SIGN
+- **Goal:** the WebSocket server of the new architecture's API gateway group: authenticated desktop clients subscribe to cloud projects and receive team messages (`snapshot.shared`, `snapshot.merged`, `runtime.alert`, `ai.done`) published on Redis channels `pv:notify:<project_id>`.
 
 #### P3-SRT-001 — Package, config and subscription hub
 **Files:** `server/services/realtime/package.json` (create) · `server/services/realtime/pnpm-lock.yaml` (create) · `server/services/realtime/tsconfig.json` (create) · `server/services/realtime/.env.example` (create) · `server/services/realtime/src/config.ts` (create) · `server/services/realtime/src/hub.ts` (create) · `server/services/realtime/src/hub.test.ts` (create)
@@ -11329,7 +11487,7 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 **Why:** one Redis subscriber shared by many sockets.
 **Steps:**
 1. Package `@pv/realtime`; deps `fastify@5 @fastify/websocket ioredis@5 zod@3 @pv/common @pv/authz @pv/telemetry`. Config: `PV_REALTIME_PORT` (8106), `PV_REDIS_URL`, `PV_PROJECTS_URL`, `PV_INTERNAL_TOKEN`, JWT settings.
-2. `hub.ts`: `class SubscriptionHub { constructor(sub: { subscribe(ch): Promise<unknown>; unsubscribe(ch): Promise<unknown>; on(ev: 'message', cb: (ch: string, msg: string) => void): void }); add(socketId: string, projectId: string, send: (msg: string) => void); remove(socketId: string); }` — subscribes to `pv:rt:<pid>` when the first socket joins, unsubscribes when the last leaves, forwards messages to all sockets of that channel.
+2. `hub.ts`: `class SubscriptionHub { constructor(sub: { subscribe(ch): Promise<unknown>; unsubscribe(ch): Promise<unknown>; on(ev: 'message', cb: (ch: string, msg: string) => void): void }); add(socketId: string, projectId: string, send: (msg: string) => void); remove(socketId: string); }` — subscribes to `pv:notify:<pid>` when the first socket joins, unsubscribes when the last leaves, forwards messages to all sockets of that channel.
 3. Tests with a fake subscriber.
 **Verify:** `cd server/services/realtime && pnpm test` → pass.
 
@@ -11339,7 +11497,7 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 **Why:** authenticated subscriptions.
 **Steps:**
 1. `GET /api/realtime/ws` (websocket): first message must be `{type:'auth', token}` within 5 s (verify JWT) else close 4401; then `{type:'subscribe', project_id}` → access check (viewer) via projects internal access → `hub.add`; reply `{type:'subscribed', project_id}`; `{type:'unsubscribe'}` → remove; ping every 30 s; close → remove.
-2. Tests using `app.injectWS` (from `@fastify/websocket`) with fakes: unauthenticated close; subscribe then a fake Redis message arrives on the socket.
+2. Tests using `app.injectWS` (from `@fastify/websocket`) with fakes: unauthenticated close; subscribe then a fake Redis message on `pv:notify:<pid>` arrives on the socket as `{type:'notify', project_id, message}`.
 **Verify:** `cd server/services/realtime && pnpm test` → pass.
 
 #### P3-SRT-003 — Entry, packaging, README
@@ -11347,17 +11505,100 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 **Refs:** R13
 **Why:** run and document.
 **Steps:**
-1. Route file: `[{"prefix":"/api/realtime","upstream_env":"PV_REALTIME_URL","auth_required":false,"rate_limit_per_min":120,"websocket":true}]`. Template files (port 8106; depends on redis). README: protocol messages.
+1. Route file: `[{"prefix":"/api/realtime","upstream_env":"PV_REALTIME_URL","auth_required":false,"rate_limit_per_min":120,"websocket":true}]`. Template files (port 8106; depends on redis). README: protocol messages and the list of message types (`snapshot.shared`, `snapshot.merged`, `runtime.alert`, `ai.done`).
 **Verify:** `pnpm dev` + `curl localhost:8106/healthz` → ok.
 
 ---
 
-### MODULE P3-SING — Ingest service (cloud Git imports) [ARCH-DEPENDENT]
+### MODULE P3-SRTAGG — Runtime aggregation service (team runtime metrics and alerts)
+- **Type:** CODE
+- **Lane:** SERVER
+- **Owns:** `server/services/runtime-agg/**` · `server/db/migrations/0041_rtagg_alert_rules.sql` · `infra/compose/compose.runtime-agg.yml` · `infra/observability/prometheus/targets/runtime-agg.json`
+- **Starts after:** P2-SIGN
+- **Goal:** the new architecture's runtime aggregation: desktops upload per-node aggregates every 5 s (R12); the service stores them in TimescaleDB, serves time series for team dashboards and fires alerts. Replaces P3-SCOLL.
+
+#### P3-SRTAGG-001 — Package, config and time-series schema
+**Files:** `server/services/runtime-agg/package.json` (create) · `server/services/runtime-agg/pnpm-lock.yaml` (create) · `server/services/runtime-agg/tsconfig.json` (create) · `server/services/runtime-agg/.env.example` (create) · `server/services/runtime-agg/src/config.ts` (create) · `server/services/runtime-agg/migrations/0001_metrics.sql` (create) · `server/services/runtime-agg/src/migrate.ts` (create)
+**Refs:** R13
+**Why:** skeleton and the hypertables.
+**Steps:**
+1. Package `@pv/runtime-agg`; deps `fastify@5 zod@3 pg@8 ioredis@5 @pv/common @pv/db @pv/authz @pv/telemetry`. Config: `PV_RTAGG_PORT` (8105), `PV_PG_URL`, `PV_TSDB_URL`, `PV_REDIS_URL`, `PV_PROJECTS_URL`, `PV_INTERNAL_TOKEN`, JWT settings, `PV_RTAGG_RETENTION_DAYS` (30), `PV_OTLP_URL?`.
+2. `0001_metrics.sql` (runs on TimescaleDB, not the main PostgreSQL):
+```sql
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+CREATE TABLE IF NOT EXISTS node_metrics (
+  time timestamptz NOT NULL,
+  project_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  node_id text NOT NULL,
+  calls integer NOT NULL,
+  errors integer NOT NULL,
+  error_rate real NOT NULL,
+  p95_ms real NOT NULL,
+  state text NOT NULL
+);
+SELECT create_hypertable('node_metrics', 'time', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS node_metrics_project_node_idx ON node_metrics (project_id, node_id, time DESC);
+CREATE TABLE IF NOT EXISTS error_counts (
+  time timestamptz NOT NULL,
+  project_id uuid NOT NULL,
+  node_id text NOT NULL,
+  type text NOT NULL,
+  count integer NOT NULL
+);
+SELECT create_hypertable('error_counts', 'time', if_not_exists => TRUE);
+```
+3. `migrate.ts`: applies files in `migrations/` in name order once (table `rtagg_migrations(name text primary key)`), then `add_retention_policy` for both tables with `PV_RTAGG_RETENTION_DAYS`.
+**Verify:** typecheck passes; with the compose stack running, `pnpm tsx src/migrate.ts` twice → second run applies nothing.
+
+#### P3-SRTAGG-002 — Metrics store
+**Files:** `server/services/runtime-agg/src/store.ts` (create) · `server/services/runtime-agg/src/upload.ts` (create) · `server/services/runtime-agg/src/store.test.ts` (create)
+**Refs:** R12, R13
+**Why:** write uploads; read series and top lists.
+**Steps:**
+1. `upload.ts`: zod schema of the R12 upload body (`nodes` ≤ 2000, `errors` ≤ 500, `window_ms` 1000–60000).
+2. `interface MetricsStore { write(projectId, userId, body): Promise<number>; series(projectId, nodeId, fromMs, toMs, bucketS): Promise<{t: number; calls: number; errors: number; p95_ms: number}[]>; top(projectId, fromMs, limit, by: 'calls'|'errors'|'p95_ms'): Promise<{node_id: string; calls: number; errors: number; p95_ms: number}[]> }` + `TimescaleStore` (`time_bucket`, one multi-row INSERT per upload) + `MemoryStore`.
+3. Tests on `MemoryStore`: two uploads → series has two buckets; top ordered by errors.
+**Verify:** `cd server/services/runtime-agg && pnpm test` → pass.
+
+#### P3-SRTAGG-003 — Alert engine
+**Files:** `server/services/runtime-agg/src/alerts.ts` (create) · `server/db/migrations/0041_rtagg_alert_rules.sql` (create) · `server/services/runtime-agg/src/alerts.test.ts` (create)
+**Refs:** R13
+**Why:** tell the team when a part of the app starts failing or slowing down.
+**Steps:**
+1. Migration (main PostgreSQL): `alert_rules (id uuid PK default gen_random_uuid(), project_id uuid not null, node_id text null, metric text not null check (metric in ('error_rate','p95_ms','calls')), op text not null check (op in ('>','<')), threshold real not null, window_s integer not null default 300, created_by uuid not null, created_at timestamptz not null default now())`.
+2. `AlertEngine.evaluate(projectId, nowMs)`: for each rule, compute the metric over `window_s` from the store (null `node_id` = worst node); state machine per rule ok → firing → ok; on each transition to firing publish `{type:'runtime.alert', project_id, rule_id, node_id, metric, value, threshold}` to `pv:notify:<project_id>`; cooldown 5 min per rule. Called after each write (at most once per 5 s per project).
+3. Tests with the memory store and a fake publisher: firing once, cooldown respected, back to ok.
+**Verify:** `cd server/services/runtime-agg && pnpm test` → pass.
+
+#### P3-SRTAGG-004 — Routes
+**Files:** `server/services/runtime-agg/src/app.ts` (create) · `server/services/runtime-agg/src/routes.ts` (create) · `server/services/runtime-agg/src/access.ts` (create) · `server/services/runtime-agg/src/app.test.ts` (create)
+**Refs:** R12, R13, R15
+**Why:** the HTTP API used by the desktop.
+**Steps:**
+1. `access.ts`: the same small `AccessClient` pattern as sync (projects internal access endpoint).
+2. Routes (JWT): `POST /api/runtime/metrics` (member of `cloud_project_id`) → write + evaluate → `{accepted}`; `GET /api/runtime/projects/:id/series?node_id&from&to&bucket_s` (viewer); `GET /api/runtime/projects/:id/top?from&limit&by` (viewer); `GET|POST /api/runtime/projects/:id/alerts`, `DELETE /api/runtime/alerts/:ruleId` (admin for changes).
+3. Tests with fakes: upload by a viewer → 403; upload by a member → accepted; series returned.
+**Verify:** `cd server/services/runtime-agg && pnpm test` → pass.
+
+#### P3-SRTAGG-005 — Entry, packaging, README
+**Files:** `server/services/runtime-agg/src/index.ts` (create) · `server/services/runtime-agg/gateway-route.json` (create) · `server/services/runtime-agg/Dockerfile` (create) · `server/services/runtime-agg/README.md` (create) · `infra/compose/compose.runtime-agg.yml` (create) · `infra/observability/prometheus/targets/runtime-agg.json` (create)
+**Refs:** R13
+**Why:** run and document.
+**Steps:**
+1. Route file `[{"prefix":"/api/runtime","upstream_env":"PV_RTAGG_URL","auth_required":true,"rate_limit_per_min":120}]`; template files (port 8105; depends on postgres, timescale, redis; `index.ts` runs `migrate` before listening).
+2. README: endpoints, upload shape (R12), retention, alerts, privacy (aggregates only).
+**Verify:** `pnpm dev` + `curl localhost:8105/healthz` → ok.
+
+---
+
+### MODULE P3-SING — Ingest service (cloud Git imports) (SUPERSEDED by P3-DCIMP)
 - **Type:** CODE
 - **Lane:** SERVER
 - **Owns:** `server/services/ingest/**` · `infra/compose/compose.ingest.yml` · `infra/observability/prometheus/targets/ingest.json`
 - **Starts after:** P2-SIGN
-- **Goal:** the current design's ingestion service: accept Git import requests and queue parse jobs (BullMQ `pv-parse`).
+- **Superseded:** 2026-09-26 — the server no longer parses code; Git import runs on the desktop (P1-DGIT clone + P3-DCIMP share). Do not build.
+- **Goal:** (old) the current design's ingestion service: accept Git import requests and queue parse jobs (BullMQ `pv-parse`).
 
 #### P3-SING-001 — Package, config, queue wiring
 **Files:** `server/services/ingest/package.json` (create) · `server/services/ingest/pnpm-lock.yaml` (create) · `server/services/ingest/tsconfig.json` (create) · `server/services/ingest/.env.example` (create) · `server/services/ingest/src/config.ts` (create) · `server/services/ingest/src/jobs.ts` (create) · `server/services/ingest/src/jobs.test.ts` (create)
@@ -11389,12 +11630,13 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 
 ---
 
-### MODULE P3-SPW — Parse worker (headless engine in the cloud) [ARCH-DEPENDENT]
+### MODULE P3-SPW — Parse worker (headless engine in the cloud) (SUPERSEDED by P3-DCIMP)
 - **Type:** CODE
 - **Lane:** SERVER
 - **Owns:** `server/services/parse-worker/**` · `infra/compose/compose.parse-worker.yml`
 - **Starts after:** P3-SING
-- **Goal:** consume `pv-parse` jobs: clone, run `pv-engine analyze`, upload the snapshot to sync (current design's parsing service, reusing the C++ engine).
+- **Superseded:** 2026-09-26 — no server-side parsing in the new architecture. Do not build.
+- **Goal:** (old) consume `pv-parse` jobs: clone, run `pv-engine analyze`, upload the snapshot to sync (current design's parsing service, reusing the C++ engine).
 
 #### P3-SPW-001 — Package and job steps
 **Files:** `server/services/parse-worker/package.json` (create) · `server/services/parse-worker/pnpm-lock.yaml` (create) · `server/services/parse-worker/tsconfig.json` (create) · `server/services/parse-worker/.env.example` (create) · `server/services/parse-worker/src/config.ts` (create) · `server/services/parse-worker/src/steps.ts` (create) · `server/services/parse-worker/src/steps.test.ts` (create)
@@ -11428,20 +11670,21 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 
 ---
 
-### MODULE P3-DCIMP — Cloud import from Git (desktop UI)
+### MODULE P3-DCIMP — Import from Git for a team (local analysis, shared map)
 - **Type:** CODE
 - **Lane:** DESKTOP
 - **Owns:** `desktop/src/main/handlers/cloud-import.ts` · `desktop/src/main/handlers/cloud-import.test.ts` · `desktop/src/renderer/src/features/cloud-import/**`
-- **Starts after:** P3-SING · P2-DCLOUD
-- **Goal:** ask the cloud to import and analyze a Git repository into a team project, then open the resulting map. [ARCH-DEPENDENT]
+- **Starts after:** P2-DCLOUD · P1-DGIT
+- **Goal:** import a whole Git repository for a team in one step: clone it on this computer (P1-DGIT), analyze it with the local engine, then share the map to a team project (P2-DCLOUD). The new architecture keeps source code on the user's machine, so this replaces the cloud import (P3-SING, P3-SPW).
 
 #### P3-DCIMP-001 — IPC handler
 **Files:** `desktop/src/main/handlers/cloud-import.ts` (create) · `desktop/src/main/handlers/cloud-import.test.ts` (create)
-**Refs:** R10, R13
-**Why:** call the ingest service with the user's session.
+**Refs:** R9, R10, R13
+**Why:** clone, analyze and share in one job, with progress.
 **Steps:**
-1. Create a `CloudClient` (import from `../cloud/cloud-client`) wired to the same settings/secrets keys as P2-DCLOUD-003. Channels: `pv:cloudImport.start {cloud_project_id, git_url, branch?}` → `POST /api/ingest/git` → `{job_id}`; `pv:cloudImport.status {job_id}` → `GET /api/ingest/jobs/:id` → `{state, progress, snapshot_id, error}`.
-2. Tests with a mocked client.
+1. Channel `pv:cloudImport.start {cloud_project_id, git_url, branch?, parent_dir?}` → returns `{job_id}` at once and runs the job: `validateGitUrl` and `cloneRepo` from `../git/git-clone` (P1-DGIT; default parent folder = the one P1-DGIT uses) → `engine.request('project.open', {root_path})` → poll `project.status` every 500 ms until `ready` (or `error`) → `engine.request('snapshot.export', {project_id})` → `CloudClient.uploadSnapshot(cloud_project_id, label, snapshot)` (label = repo folder name + date). Progress is sent with `ctx.send('pv:cloudImport.progress', {job_id, stage: 'clone'|'analyze'|'upload'|'done'|'failed', progress: 0–100, project_id?, snapshot_id?, error?})`.
+2. `pv:cloudImport.status {job_id}` → the last progress object. Only one job at a time (a second start → error `busy`).
+3. Tests with fakes for clone, engine and client: stages in order; a clone failure ends in `failed` with the message.
 **Verify:** `cd desktop && pnpm vitest run src/main/handlers/cloud-import.test.ts` → pass.
 
 #### P3-DCIMP-002 — Dialog and registration
@@ -11449,19 +11692,20 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 **Refs:** R10
 **Why:** UI for team imports.
 **Steps:**
-1. Dialog: org/project selects (via `pv:cloud.orgs.list` / `pv:cloud.projects.list`), Git URL, branch; "Import in the cloud" → start → poll status every 2 s showing state/progress; done → button "Open map" → `invoke('pv:cloud.snapshots.open', {snapshot_id})` → `openedProject`; failed → error text.
+1. Dialog: org/project selects (via `pv:cloud.orgs.list` / `pv:cloud.projects.list`), Git URL, branch; note "The code is cloned and analyzed on this computer. Only the map is shared."; "Import and share" → start → progress bar with the stage names from `pv:cloudImport.progress`; done → the map is already open locally (`openedProject(project_id, root)`) and a message "Shared with <project>"; failed → error text.
 2. `register(app)`: welcome action `cloud-import` ("Import a repository for my team", order 35); command `cloud.import`; global dialog host.
 3. Tests with mocks.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/cloud-import` → pass.
 
 ---
 
-### MODULE P3-DREMOTE — Remote runtime (deployed apps via the cloud)
+### MODULE P3-DREMOTE — Remote runtime (deployed apps via the cloud) (SUPERSEDED by P3-DRTUP)
 - **Type:** CODE
 - **Lane:** DESKTOP
 - **Owns:** `desktop/src/main/remote-runtime/**` · `desktop/src/main/handlers/remote-runtime.ts` · `desktop/src/main/handlers/remote-runtime.test.ts` · `desktop/src/renderer/src/features/remote-runtime/**`
 - **Starts after:** P3-SRT · P3-SCOLL · P3-DHUB
-- **Goal:** watch a deployed application: create a runtime source token in the cloud, subscribe to its live events over WebSocket, and feed them into the local engine for the open project. [ARCH-DEPENDENT]
+- **Superseded:** 2026-09-26 — the collector it needed is removed; team runtime sharing is P3-DRTUP. Do not build.
+- **Goal:** (old) watch a deployed application: create a runtime source token in the cloud, subscribe to its live events over WebSocket, and feed them into the local engine for the open project. [ARCH-DEPENDENT]
 
 #### P3-DREMOTE-001 — Realtime client
 **Files:** `desktop/src/main/remote-runtime/realtime-client.ts` (create) · `desktop/src/main/remote-runtime/realtime-client.test.ts` (create)
@@ -11490,6 +11734,53 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 2. `register(app)`: the panel; command `remote.watch`.
 3. Tests with mocks.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/remote-runtime` → pass.
+
+---
+
+### MODULE P3-DRTUP — Team runtime sharing (desktop)
+- **Type:** CODE
+- **Lane:** DESKTOP
+- **Owns:** `desktop/src/main/team-runtime/**` · `desktop/src/main/handlers/team-runtime.ts` · `desktop/src/main/handlers/team-runtime.test.ts` · `desktop/src/renderer/src/features/team-runtime/**`
+- **Starts after:** P3-SRTAGG · P3-SRT · P3-DRT · P3-DHEALTH · P2-DCLOUD
+- **Goal:** opt-in upload of runtime aggregates every 5 s to the team (R12), a team dashboard with top nodes, series and alerts, and live team notifications over WSS. Replaces P3-DREMOTE.
+
+#### P3-DRTUP-001 — Aggregator and uploader
+**Files:** `desktop/src/main/team-runtime/uploader.ts` (create) · `desktop/src/main/team-runtime/uploader.test.ts` (create)
+**Refs:** R12
+**Why:** send aggregates, never raw events.
+**Steps:**
+1. `class RuntimeUploader { constructor(deps: { engine: { request(m, p): Promise<unknown> }; upload(body): Promise<void>; now(): number; intervalMs?: number }); start(projectId: string, cloudProjectId: string); stop(); status(): {active, last_upload_ms, last_error, queued} }` — every 5 s: `health.get {project_id}` → nodes with `calls > 0` (fields from R12); `errors.list` → counts per `{type, node_id}` since the previous window; skip the upload when there was no runtime activity; on failure keep up to 12 windows and retry with backoff 5 → 10 → 30 → 60 s.
+2. Tests with fake engine/clock: one upload per window; nothing sent when idle; queue capped at 12.
+**Verify:** `cd desktop && pnpm vitest run src/main/team-runtime/uploader.test.ts` → pass.
+
+#### P3-DRTUP-002 — Team notifications client
+**Files:** `desktop/src/main/team-runtime/notify-client.ts` (create) · `desktop/src/main/team-runtime/notify-client.test.ts` (create)
+**Refs:** R13
+**Why:** receive `runtime.alert` and `snapshot.shared` messages.
+**Steps:**
+1. `class NotifyClient { constructor(opts: { url: () => string; accessToken: () => Promise<string>; createSocket(url: string): SocketLike; onMessage(projectId: string, message: unknown): void; onStatus(s: 'connecting'|'connected'|'disconnected'): void }); subscribe(cloudProjectId: string); unsubscribe(cloudProjectId: string); dispose() }` — connects to `<server>/api/realtime/ws` (http → ws scheme), sends `{type:'auth', token}` then one `{type:'subscribe', project_id}` per project; incoming `{type:'notify', project_id, message}` → `onMessage`; reconnect with backoff (1, 2, 5, 10 s) and re-subscribe.
+2. Tests with a fake socket.
+**Verify:** `cd desktop && pnpm vitest run src/main/team-runtime/notify-client.test.ts` → pass.
+
+#### P3-DRTUP-003 — Handler
+**Files:** `desktop/src/main/handlers/team-runtime.ts` (create) · `desktop/src/main/handlers/team-runtime.test.ts` (create)
+**Refs:** R10, R12
+**Why:** expose sharing, dashboard data and notifications to the renderer.
+**Steps:**
+1. Uses a `CloudClient` (as in P3-DCIMP-001), `RuntimeUploader` and `NotifyClient` (`ws` package). Setting `teamRuntime.<root>` = `{cloud_project_id}` when sharing is on.
+2. Channels: `pv:teamRuntime.status {project_id}`; `pv:teamRuntime.enable {project_id, cloud_project_id}` (starts the uploader and subscribes); `pv:teamRuntime.disable {project_id}`; `pv:teamRuntime.top {cloud_project_id, from_ms, by}`; `pv:teamRuntime.series {cloud_project_id, node_id, from_ms, to_ms}`; `pv:teamRuntime.alerts.list|create|delete`. Notifications are forwarded with `ctx.send('pv:team.notify', {project_id, message})`.
+3. Tests with mocks.
+**Verify:** `cd desktop && pnpm vitest run src/main/handlers/team-runtime.test.ts` → pass.
+
+#### P3-DRTUP-004 — Team runtime panel and registration
+**Files:** `desktop/src/renderer/src/features/team-runtime/team-runtime-store.ts` (create) · `desktop/src/renderer/src/features/team-runtime/TeamRuntimePanel.tsx` (create) · `desktop/src/renderer/src/features/team-runtime/register.tsx` (create) · `desktop/src/renderer/src/features/team-runtime/team-runtime.test.tsx` (create)
+**Refs:** R10
+**Why:** the team dashboard.
+**Steps:**
+1. Panel (bottom `team-runtime`, "Team runtime", order 45): signed out → sign-in hint; else team project select, switch "Share runtime metrics with my team" with the note "Only counts and timings are shared — never code, arguments or stack traces."; top nodes table (click → `revealNode`); a small SVG line chart of calls / errors / p95 for the selected node (last hour); alert rules list and "New alert" form (metric, op, threshold, window).
+2. `register(app)`: the panel; a global watcher that turns `pv:team.notify` messages into toasts (`runtime.alert` → warning "Alert: <node> <metric> <value>"; `snapshot.shared` → info "<by> shared <label>").
+3. Tests with mocks.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/team-runtime` → pass.
 
 ---
 
@@ -11525,7 +11816,7 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 - **Type:** DOCS
 - **Lane:** DOCS
 - **Owns:** `docs/user-guide/phase3/**`
-- **Starts after:** P3-DRT · P3-DHEALTH · P3-DERR · P3-DREMOTE · P3-DCIMP
+- **Starts after:** P3-DRT · P3-DHEALTH · P3-DERR · P3-DRTUP · P3-DCIMP
 - **Goal:** explain live runtime features.
 
 #### P3-UDOC-001 — Live runtime guide
@@ -11542,7 +11833,7 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 **Why:** interpret colors, find root causes, paste errors; team features.
 **Steps:**
 1. `health-and-errors.md`: `## Health colors`, `## Find the root cause`, `## Paste an error`, `## Runtime errors list`, `## Thresholds`.
-2. `remote-and-cloud-import.md`: `## Watch a deployed app`, `## Import a repository in the cloud`, `## Privacy`.
+2. `remote-and-cloud-import.md` (team features of the new architecture): `## Share runtime metrics with your team`, `## Alerts`, `## Import a repository for your team`, `## Privacy`.
 **Verify:** both files exist with their sections.
 
 ---
@@ -11551,7 +11842,7 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 - **Type:** DOCS
 - **Lane:** DOCS
 - **Owns:** `docs/signoff/phase-3.md`
-- **Starts after:** P3-UDOC · P3-RTE2E · P3-LCPP · P3-LRUST · P3-LCS · P3-AGNODE · P3-SPW
+- **Starts after:** P3-UDOC · P3-RTE2E · P3-LCPP · P3-LRUST · P3-LCS · P3-AGNODE · P3-SRTAGG · P3-DRTUP
 - **Goal:** confirm Phase 3 is complete.
 
 #### P3-SIGN-001 — Phase 3 checklist
@@ -11574,15 +11865,15 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 
 # PHASE 4 — AI DEBUGGING VISUALIZATION AND IMPACT ANALYSIS
 
-**Mission:** explain errors in plain language grounded in the twin, detect when a fix works and clear the error live, preview the impact of a change with a risk score (static + runtime evidence), answer questions about the codebase, give AI coding agents the map through MCP, and open the engine to any language through plugins. Adds the Python AI service and the AI gateway **[ARCH-DEPENDENT]**.
+**Mission:** explain errors in plain language grounded in the twin, detect when a fix works and clear the error live, preview the impact of a change with a risk score (static + runtime evidence), answer questions about the codebase, give AI coding agents the map through MCP, and open the engine to any language through plugins. Adds the Python AI service and the AI gateway **[ARCH-DEPENDENT]**. New architecture (2026-09-26): the engine becomes a local server (named pipe + TCP 7700), gains a local cache, a native file watcher and engine-side layouts, and the desktop gets React Flow / React Three Fiber views.
 
 ### Phase 4 wave table
 
 | Wave | Modules (parallel inside a wave) |
 |---|---|
-| 1 | P4-CRPC · P4-PROMPT · P4-AIDEPS · P4-PLUGIN |
-| 2 | P4-INCR · P4-CHANGE · P4-GROUND · P4-AIBASE · P4-LPACK |
-| 3 | P4-FIXSYNC · P4-MCP · P4-AIEXP · P4-AIERR · P4-AIQA · P4-AIEMB |
+| 1 | P4-CRPC · P4-PROMPT · P4-AIDEPS · P4-PLUGIN · P4-EWATCH · P4-EIPC · P4-ECACHE · P4-DDEPS |
+| 2 | P4-INCR · P4-CHANGE · P4-GROUND · P4-AIBASE · P4-LPACK · P4-ELAYOUT |
+| 3 | P4-FIXSYNC · P4-MCP · P4-AIEXP · P4-AIERR · P4-AIQA · P4-AIEMB · P4-DRF2D · P4-DR3F |
 | 4 | P4-SAIGW · P4-AIEVAL |
 | 5 | P4-DAIM · P4-DFIX |
 | 6 | P4-DERRAI · P4-DQA · P4-DCHANGE · P4-DMCP |
@@ -11594,7 +11885,7 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 ### MODULE P4-CRPC — Phase 4 contracts
 - **Type:** CODE
 - **Lane:** CONTRACTS
-- **Owns:** `contracts/rpc/watch/**` · `contracts/rpc/fixes/**` · `contracts/rpc/change/**` · `contracts/rpc/grounding/**` · `contracts/http/ai/**`
+- **Owns:** `contracts/rpc/watch/**` · `contracts/rpc/fixes/**` · `contracts/rpc/change/**` · `contracts/rpc/grounding/**` · `contracts/rpc/engine-server/**` · `contracts/rpc/editor/**` · `contracts/rpc/cache/**` · `contracts/rpc/layout/**` · `contracts/http/ai/**`
 - **Starts after:** P3-SIGN
 - **Goal:** schemas for the new engine methods and for the Python AI service HTTP API.
 
@@ -11638,6 +11929,26 @@ CREATE INDEX IF NOT EXISTS runtime_sources_project_idx ON runtime_sources(projec
 4. `qa_ask`: request `{question, pack: object, history: array of {role: enum ["user","assistant"], content}}` (max 10) → response `{answer_markdown, cited_nodes, highlight_node_ids: string[], need_more: string[], usage}`.
 5. `change_summary`: request `{preview: object, notes: string}` → response `{markdown, usage}`.
 6. `embed_index`: `{project_key: string, items: array of {node_id, text} (max 500)}`; `embed_search` request `{project_key, query, k: 1–50}` → response `{hits: array of {node_id, score: number}}`.
+**Verify:** `cd contracts && pnpm validate` → `failed=0`.
+
+#### P4-CRPC-005 — Local server, editor, cache and layout schemas (new architecture)
+**Files:** `contracts/rpc/engine-server/hello.params.schema.json` (create) · `contracts/rpc/engine-server/hello.result.schema.json` (create) · `contracts/rpc/engine-server/info.params.schema.json` (create) · `contracts/rpc/engine-server/info.result.schema.json` (create) · `contracts/rpc/editor/reveal.params.schema.json` (create) · `contracts/rpc/editor/open.params.schema.json` (create) · `contracts/rpc/editor/delivered.result.schema.json` (create) · `contracts/rpc/cache/status.params.schema.json` (create) · `contracts/rpc/cache/status.result.schema.json` (create) · `contracts/rpc/cache/clear.params.schema.json` (create) · `contracts/rpc/layout/compute.params.schema.json` (create) · `contracts/rpc/layout/compute.result.schema.json` (create) · `contracts/rpc/layout/examples/compute.params.1.json` (create)
+**Refs:** R9
+**Why:** contracts for the new engine methods (the `engine.*` namespace of P1-CRPC stays untouched; the new server methods live in the folder `engine-server`).
+**Steps:**
+1. `engine.hello`: `{token?: string, client: enum ["desktop","vscode","tool"]}` → `{version, client_id: integer}`. `engine.info`: `{}` → `{version, pid, pipe: string, tcp_port: integer|null, clients: array of {client_id, client, transport: enum ["stdio","pipe","tcp"]}}`.
+2. `editor.reveal`: `{file_path: string, line: integer ≥ 1, column?: integer ≥ 0}`; `editor.open`: `{file_path, line}`; both results `{delivered: integer ≥ 0}` (the notifications carry the same params).
+3. `cache.status`: `{project_id}` → `{dir, files, hits, misses, bytes}` (integers except `dir`); `cache.clear`: `{project_id}` → `{ok:true}` (reuse `../common` ok result if present, else inline).
+4. `layout.compute`: `{project_id, parent_id?: string, mode: enum ["2d","3d"], rankdir?: enum ["TB","LR"]}` → `{graph_version: integer, cached: boolean, positions: object of {x: number, y: number, z?: number}, edges: object of array of {x, y}}`. Example: 2d layout of `project:` for the fixture.
+**Verify:** `cd contracts && pnpm validate` → `failed=0`.
+
+#### P4-CRPC-006 — Watch mode and AI stream events (new architecture)
+**Files:** `contracts/rpc/watch/start.params.schema.json` (edit) · `contracts/rpc/watch/start.result.schema.json` (edit) · `contracts/rpc/watch/stop.result.schema.json` (edit) · `contracts/rpc/watch/status.result.schema.json` (edit) · `contracts/http/ai/stream_event.schema.json` (create)
+**Refs:** R9, R11
+**Why:** native watcher mode and SSE streaming.
+**Steps:**
+1. `watch.start` params add optional `mode: enum ["auto","native","poll"]`; the three results add required `mode: enum ["native","poll"]` (the mode actually used).
+2. `stream_event.schema.json`: `oneOf` `{event: const "delta", data: {text: string}}` · `{event: const "done", data: object}` · `{event: const "error", data: {error: {code, message}}}`.
 **Verify:** `cd contracts && pnpm validate` → `failed=0`.
 
 ---
@@ -11808,6 +12119,18 @@ IncrementalManager& manager();
 2. Test suite `WatchRpc`: start on a temp copy of the fixture; write a new file `app/extra.py` with a function; poll `watch.status`/graph for up to 5 s → node `function:app/extra.py#<name>` exists; stop.
 3. README: `## How it works` (polling, seed, re-parse changed files, full relink), `## Cost` (parsing only changed files), `## Limits` (1 s default delay; very large repos: raise the interval).
 **Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R WatchRpc` → pass.
+
+#### P4-INCR-005 — Native watcher as the change source (new architecture)
+**Files:** `engine/modules/incremental/CMakeLists.txt` (edit) · `engine/modules/incremental/include/pv/incremental/incremental.hpp` (edit) · `engine/modules/incremental/src/manager.cpp` (edit) · `engine/modules/incremental/src/register.cpp` (edit) · `engine/modules/incremental/tests/native_watch_test.cpp` (create) · `engine/modules/incremental/README.md` (edit)
+**Refs:** R8, R9
+**Why:** the new architecture updates the map less than 100 ms after a save; 1 s polling is too slow.
+**Needs:** P4-EWATCH
+**Steps:**
+1. Add `pv_fswatch` to DEPS. `IncrementalManager::start(project, interval_ms, mode)` with `mode` `auto` (default: native when `fswatch::create_watcher` succeeds, else poll), `native` (error `unsupported` when unavailable) or `poll` (old behaviour).
+2. Native mode: watcher events (already debounced by `fswatch`) → the changed relative paths go straight to `apply_changes` (the hash check still ignores saves without changes); a `rescan` event runs one full `scan_states` diff. Polling still runs every 10 s as a safety net.
+3. `status` adds `mode`; `watch.*` RPC accepts and returns `mode` (P4-CRPC-006).
+4. Test (suite `IncrNativeWatch`): on a temp project, modify one file → `graph.changed` arrives; the test prints the measured delay and fails above 500 ms (the product target is < 100 ms; CI machines are slow).
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R Incr` → all pass.
 
 ---
 
@@ -12133,6 +12456,192 @@ inherits.scm:
 
 ---
 
+### MODULE P4-EWATCH — Native file watcher
+- **Type:** CODE
+- **Lane:** ENGINE
+- **Owns:** `engine/modules/fswatch/**`
+- **Starts after:** P3-SIGN
+- **Goal:** operating-system file change events (ReadDirectoryChangesW on Windows, inotify on Linux, FSEvents on macOS) with debouncing, so saved files reach the engine at once (new architecture: "file system watcher → change detected").
+
+#### P4-EWATCH-001 — Interface and Windows watcher
+**Files:** `engine/modules/fswatch/CMakeLists.txt` (create) · `engine/modules/fswatch/include/pv/fswatch/fswatch.hpp` (create) · `engine/modules/fswatch/src/watcher_win.cpp` (create) · `engine/modules/fswatch/src/factory.cpp` (create) · `engine/modules/fswatch/tests/fswatch_test.cpp` (create)
+**Refs:** R6, R8
+**Why:** one small interface; Windows first (the main dev machine).
+**Steps:**
+1. `CMakeLists.txt`: `pv_add_module(NAME fswatch DEPS pv_core pv_fs)` (on macOS also link `-framework CoreServices`).
+2. `fswatch.hpp`: `struct Change { enum class Kind { Modified, Created, Deleted, Rescan } kind; std::string rel_path; };` `class Watcher { public: virtual ~Watcher() = default; virtual void stop() = 0; };` `std::unique_ptr<Watcher> create_watcher(const std::string& root, const std::vector<std::string>& exclude_globs, std::function<void(std::vector<Change>)> on_changes, int debounce_ms = 30);` — returns nullptr when native watching is not possible.
+3. `watcher_win.cpp` (only compiled on `_WIN32`): `ReadDirectoryChangesW` on the root with `bWatchSubtree = TRUE`, filters `FILE_NOTIFY_CHANGE_FILE_NAME | DIR_NAME | LAST_WRITE | SIZE`, overlapped I/O on a worker thread, 64 KB buffer; buffer overflow (`ERROR_NOTIFY_ENUM_DIR`) → one `Rescan`. Paths converted to `/` and made relative.
+4. `factory.cpp`: `create_watcher` picks the platform class; applies excludes (same matcher as `fs` discovery); debounces per path (collects events for `debounce_ms` after the last one, then calls `on_changes` once with the batch).
+5. Test (suite `FsWatch`): temp tree; create, modify and delete a file → the three kinds arrive within 1 s; excluded folder ignored.
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R FsWatch` → pass.
+
+#### P4-EWATCH-002 — Linux and macOS watchers
+**Files:** `engine/modules/fswatch/src/watcher_linux.cpp` (create) · `engine/modules/fswatch/src/watcher_mac.cpp` (create) · `engine/modules/fswatch/README.md` (create)
+**Refs:** R8
+**Why:** the same behaviour on every desktop platform.
+**Steps:**
+1. Linux (`__linux__`): inotify with a watch per directory (walk the tree at start; add watches for new directories); mask `IN_CLOSE_WRITE | IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF`; `IN_Q_OVERFLOW` → `Rescan`; the user watch limit reached → return nullptr (the caller falls back to polling).
+2. macOS (`__APPLE__`): `FSEventStreamCreate` with `kFSEventStreamCreateFlagFileEvents`, latency 0.02 s, on a dispatch queue.
+3. README: platforms, limits, fallback to polling.
+**Verify:** Windows build and `FsWatch` tests still pass; the Linux CI job (P0-CI) builds the module.
+
+---
+
+### MODULE P4-EIPC — Engine local server (named pipe, Unix socket, TCP 7700)
+- **Type:** CODE
+- **Lane:** ENGINE
+- **Owns:** `engine/modules/ipc/**`
+- **Starts after:** P3-SIGN · P1-RPC · P1-EAPP
+- **Goal:** `pv-engine serve`: the new architecture's IPC bridge — the desktop connects over a named pipe / Unix socket and the VS Code extension over TCP 127.0.0.1:7700, both sharing one engine, its projects and its notifications (R9).
+
+#### P4-EIPC-001 — Listeners
+**Files:** `engine/modules/ipc/CMakeLists.txt` (create) · `engine/modules/ipc/include/pv/ipc/listeners.hpp` (create) · `engine/modules/ipc/src/listeners_win.cpp` (create) · `engine/modules/ipc/src/listeners_posix.cpp` (create) · `engine/modules/ipc/tests/listeners_test.cpp` (create)
+**Refs:** R8, R9
+**Why:** byte streams for each transport.
+**Steps:**
+1. `pv_add_module(NAME ipc DEPS pv_core pv_rpc pv_session)` (Windows: link `ws2_32`).
+2. `listeners.hpp`: `class Listener { public: virtual ~Listener() = default; virtual std::unique_ptr<pv::rpc::ByteStream> accept() = 0; /* nullptr after close */ virtual void close() = 0; };` `std::unique_ptr<Listener> listen_pipe(const std::string& name);` `std::unique_ptr<Listener> listen_tcp(int first_port, int tries, int& chosen_port);` (binds `127.0.0.1` only; `chosen_port = 0` when all ports are busy).
+3. Windows: named pipe `\\.\pipe\<name>` with `PIPE_REJECT_REMOTE_CLIENTS`, a security descriptor that allows only the current user, a new pipe instance per accepted client; Winsock TCP. POSIX: Unix socket in the path given (file mode 0600, stale file removed first); BSD sockets TCP.
+4. Tests (suite `IpcListeners`): TCP listen on port 0-range, connect with a plain client socket, bytes echo; pipe/socket round-trip.
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R IpcListeners` → pass.
+
+#### P4-EIPC-002 — Engine info file and handshake
+**Files:** `engine/modules/ipc/include/pv/ipc/engine_info.hpp` (create) · `engine/modules/ipc/src/engine_info.cpp` (create) · `engine/modules/ipc/tests/engine_info_test.cpp` (create)
+**Refs:** R9
+**Why:** local tools find the engine and prove they are the same user.
+**Steps:**
+1. `std::string random_token();` (32 random bytes → 64 hex, from `std::random_device`); `std::string info_path();` (`$PV_HOME` or `~/.project-visualizer` + `/engine.json`); `void write_info(const EngineInfo&)` (write to a temp file and rename; on POSIX chmod 0600; on Windows the user profile folder is already private) and `void remove_info(int pid)` (only when the file still has our pid).
+2. Gate for TCP connections: until `engine.hello` with the right token succeeds, every other request gets error `-32600` "call engine.hello first"; pipe/socket connections need no token (the OS already limits them to the user) but may call `engine.hello` to set their client kind.
+3. Tests (suite `IpcInfo`): write/read/remove; wrong token rejected; right token accepted.
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R IpcInfo` → pass.
+
+#### P4-EIPC-003 — serve command, clients and editor relay
+**Files:** `engine/modules/ipc/include/pv/ipc/server.hpp` (create) · `engine/modules/ipc/src/server.cpp` (create) · `engine/modules/ipc/src/register.cpp` (create) · `engine/modules/ipc/tests/server_test.cpp` (create)
+**Refs:** R8, R9
+**Why:** one engine, many clients.
+**Steps:**
+1. `class LocalServer { public: LocalServer(pv::session::Registry& reg); int run(const ServeOptions& opts); void stop(); std::vector<ClientInfo> clients() const; int broadcast(const std::string& method, const Json& params, int except_client, const std::string& only_kind = ""); };` — one accept thread per listener; one thread per connection running `pv::rpc::Connection` with a shared dispatch mutex; each connection is added to the fan-out notifier (`dynamic_cast<pv::rpc::FanoutNotifier*>(&reg.notifier)`) and removed when it closes.
+2. `register.cpp`: CLI command `serve` with `--pipe <name>` (default `pv-engine-<user>`), `--tcp <port>` (default 7700, `0` = off, tries 10 ports), `--parent-pid <pid>` (checked every 2 s; the engine stops when that process is gone), `--stdio` (also serve stdin/stdout). Writes `engine.json` after listening, logs `pv-engine serving pipe=<name> tcp=<port>` to stderr, removes the file on exit. Methods: `engine.hello`, `engine.info`, `editor.reveal` (broadcast notification `editor.reveal` to all other clients → `{delivered}`), `editor.open` (notification `editor.open` only to clients whose kind is `vscode` → `{delivered}`). `engine.shutdown` and `request_shutdown` stop the server.
+3. Tests (suite `IpcServer`): start a server on TCP with a test registry; two clients; `project.progress`-style notification reaches both; `editor.open` reaches only the `vscode` client.
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R Ipc` → all pass.
+
+#### P4-EIPC-004 — Smoke test and README
+**Files:** `engine/modules/ipc/tests/serve_smoke.py` (create) · `engine/modules/ipc/README.md` (create)
+**Refs:** R9, R14
+**Why:** prove the real executable works with two clients.
+**Steps:**
+1. `serve_smoke.py <engine-path>`: start `pv-engine serve --pipe pv-smoke-<pid> --tcp 7790`; read `engine.json` (use a temp `PV_HOME`); connect over TCP, `engine.hello`, `engine.ping`, open the Python fixture project and wait for `ready`; a second TCP client receives `project.progress` notifications; print `SERVE OK`.
+2. README: command line, transports, security (user-only pipe, token for TCP, 127.0.0.1 only), clients, editor relay.
+**Verify:** `python engine/modules/ipc/tests/serve_smoke.py engine/build/app/Debug/pv-engine.exe` → `SERVE OK`.
+
+---
+
+### MODULE P4-ECACHE — Local cache (SQLite + LevelDB)
+- **Type:** CODE
+- **Lane:** ENGINE
+- **Owns:** `engine/modules/cache/**` · `engine/third_party/sqlite/**` · `engine/third_party/leveldb/**`
+- **Starts after:** P3-SIGN · P1-BUILDR
+- **Goal:** the new architecture's local cache: SQLite for project metadata and the AST (extraction) index, LevelDB for graph blobs and the layout cache, so reopening a project only parses changed files. (Takes over the SQLite library from P5-METRIC.)
+
+#### P4-ECACHE-001 — SQLite library
+**Files:** `engine/third_party/sqlite/CMakeLists.txt` (create)
+**Refs:** R5
+**Why:** a small embedded database (also used later by P5-METRIC).
+**Steps:**
+1. Create:
+```cmake
+FetchContent_Declare(sqlite
+  URL https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_GetProperties(sqlite)
+if(NOT sqlite_POPULATED)
+  FetchContent_Populate(sqlite)
+endif()
+add_library(pv_tp_sqlite STATIC ${sqlite_SOURCE_DIR}/sqlite3.c)
+target_include_directories(pv_tp_sqlite PUBLIC ${sqlite_SOURCE_DIR})
+target_compile_definitions(pv_tp_sqlite PRIVATE SQLITE_THREADSAFE=1 SQLITE_OMIT_LOAD_EXTENSION)
+set_target_properties(pv_tp_sqlite PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
+if(MSVC)
+  target_compile_options(pv_tp_sqlite PRIVATE /W0)
+else()
+  target_compile_options(pv_tp_sqlite PRIVATE -w)
+  find_package(Threads REQUIRED)
+  target_link_libraries(pv_tp_sqlite PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+endif()
+```
+2. If CMake warns that `FetchContent_Populate` is deprecated, that is acceptable (the archive has no CMake project). If it errors, replace the three `GetProperties/Populate` lines with `FetchContent_MakeAvailable(sqlite)` plus `SOURCE_SUBDIR pv_no_cmake` in the declare call.
+**Verify:** `cd engine && cmake --preset dev && cmake --build --preset dev --target pv_tp_sqlite` → builds.
+
+#### P4-ECACHE-002 — LevelDB library
+**Files:** `engine/third_party/leveldb/CMakeLists.txt` (create)
+**Refs:** R5
+**Why:** a fast key-value store for large blobs.
+**Steps:**
+1. `FetchContent_Declare(leveldb GIT_REPOSITORY https://github.com/google/leveldb.git GIT_TAG 1.23 GIT_SHALLOW TRUE)`; before `FetchContent_MakeAvailable(leveldb)` set `LEVELDB_BUILD_TESTS OFF`, `LEVELDB_BUILD_BENCHMARKS OFF`, `LEVELDB_INSTALL OFF` (as `CACHE BOOL "" FORCE`); `add_library(pv_tp_leveldb ALIAS leveldb)`; silence warnings of the target (`/W0` or `-w`).
+**Verify:** `cd engine && cmake --preset dev && cmake --build --preset dev --target leveldb` → builds.
+
+#### P4-ECACHE-003 — Project cache store
+**Files:** `engine/modules/cache/CMakeLists.txt` (create) · `engine/modules/cache/include/pv/cache/project_cache.hpp` (create) · `engine/modules/cache/src/project_cache.cpp` (create) · `engine/modules/cache/src/extraction_json.cpp` (create) · `engine/modules/cache/tests/project_cache_test.cpp` (create)
+**Refs:** R6, R8
+**Why:** one cache folder per project.
+**Steps:**
+1. `pv_add_module(NAME cache DEPS pv_core pv_parse pv_graph pv_builder pv_session pv_tp_sqlite pv_tp_leveldb)`.
+2. Folder: `$PV_CACHE_DIR` or `~/.project-visualizer/cache/` + first 16 hex of SHA-1 (or FNV) of the canonical root. SQLite `meta.db`: `project(key TEXT PRIMARY KEY, value TEXT)` (root, engine version, schema version 1, opened_ms) and `files(rel_path TEXT PRIMARY KEY, language TEXT, content_hash TEXT, size INTEGER, stored_ms INTEGER)`. LevelDB folder `blobs/`: `x:<language>:<content_hash>` → extraction JSON; `g:latest` → graph JSON; `l:<mode>:<parent_id>:<graph_version>` → layout JSON.
+3. `class ProjectCache { static std::unique_ptr<ProjectCache> open(const std::string& root); std::optional<parse::FileExtraction> get_extraction(lang, hash); void put_extraction(rel_path, lang, hash, fx); std::optional<Json> get_layout(key); void put_layout(key, json); Stats stats() const; void clear(); }` — a different engine version or schema version wipes the folder on open. `extraction_json.cpp`: `to_json` / `from_json` for `parse::FileExtraction` and its parts.
+4. Tests (suite `CacheStore`): round-trip of an extraction; version change wipes; stats count hits and misses.
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R CacheStore` → pass.
+
+#### P4-ECACHE-004 — Builder hook, RPC and benchmark
+**Files:** `engine/modules/cache/src/register.cpp` (create) · `engine/modules/cache/tests/cache_rpc_test.cpp` (create) · `engine/modules/cache/README.md` (create)
+**Refs:** R8, R9
+**Why:** turn the cache on for every opened project.
+**Steps:**
+1. `register.cpp`: an `ExtractionCache` implementation (P1-BUILDR-012) that finds the `ProjectCache` for the file's project root (a map root → cache, opened on first use) and forwards `lookup` / `store`; `pv::builder::set_extraction_cache(&instance)` unless env `PV_CACHE=off`. RPC `cache.status {project_id}` and `cache.clear {project_id}` (R9).
+2. Tests (suite `CacheRpc`): open the fixture project twice (close in between) → second load has `hits == files` and the same graph.
+3. README: layout of the folder, what is stored (no source text — extractions contain names, spans and references only), `PV_CACHE_DIR`, `PV_CACHE=off`, and a measured table: first vs second open of a generated 100,000-line Python project (use `engine/modules/perf` fixtures if present).
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R Cache` → all pass.
+
+---
+
+### MODULE P4-ELAYOUT — Engine layouts (layered 2D, force 3D)
+- **Type:** CODE
+- **Lane:** ENGINE
+- **Owns:** `engine/modules/layout/**`
+- **Starts after:** P4-ECACHE · P4-CRPC
+- **Goal:** the new architecture's graph subsystem layouts: a Dagre-style layered 2D layout and a 3D force-directed layout computed in C++, cached in the local cache, served by `layout.compute`.
+
+#### P4-ELAYOUT-001 — Layered 2D layout
+**Files:** `engine/modules/layout/CMakeLists.txt` (create) · `engine/modules/layout/include/pv/layout/layout.hpp` (create) · `engine/modules/layout/src/layered.cpp` (create) · `engine/modules/layout/tests/layered_test.cpp` (create)
+**Refs:** R8
+**Why:** readable left-to-right / top-to-bottom maps without JavaScript layout cost.
+**Steps:**
+1. `pv_add_module(NAME layout DEPS pv_core pv_graph pv_graphapi pv_cache pv_session)`.
+2. `layout.hpp`: `struct LNode { std::string id; double w = 160, h = 48; };` `struct LEdge { std::string id, source, target; };` `struct Point { double x = 0, y = 0, z = 0; };` `struct LayoutResult { std::map<std::string, Point> positions; std::map<std::string, std::vector<Point>> edge_points; };` `LayoutResult layered(const std::vector<LNode>&, const std::vector<LEdge>&, const LayeredOptions& = {});` with `LayeredOptions { std::string rankdir = "TB"; double nodesep = 40, ranksep = 80; }`.
+3. `layered.cpp` (Sugiyama, like Dagre): break cycles by reversing DFS back edges; rank by longest path; add dummy nodes on edges spanning > 1 rank; order each rank by barycenter, 4 down/up sweeps; x by simple compaction (keep order, nodesep gaps, then shift each node toward the median of its neighbours without overlap); y = rank × (max height + ranksep); `LR` swaps axes; edge points = centres of the dummy nodes; disconnected components placed side by side. Deterministic (ties broken by id).
+4. Tests (suite `LayoutLayered`): chain gets increasing y; diamond has no overlaps; a cycle terminates; same input → same output.
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R LayoutLayered` → pass.
+
+#### P4-ELAYOUT-002 — 3D force layout
+**Files:** `engine/modules/layout/src/force3d.cpp` (create) · `engine/modules/layout/tests/force3d_test.cpp` (create)
+**Refs:** R8
+**Why:** 3D positions without the browser simulation.
+**Steps:**
+1. `LayoutResult force3d(const std::vector<LNode>&, const std::vector<LEdge>&, int iterations = 300);` — Fruchterman–Reingold in 3D: initial positions from a seeded RNG (seed = hash of the sorted ids); repulsion between all pairs (Barnes–Hut octree when > 2,000 nodes, θ = 0.8), spring attraction on edges, cooling schedule; centred at the origin.
+2. Tests (suite `LayoutForce3d`): connected nodes end closer than unconnected ones on average; deterministic; 2,000 nodes finish < 2 s in Release (print the time; Debug only checks it finishes).
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R LayoutForce3d` → pass.
+
+#### P4-ELAYOUT-003 — layout.compute and README
+**Files:** `engine/modules/layout/src/register.cpp` (create) · `engine/modules/layout/tests/layout_rpc_test.cpp` (create) · `engine/modules/layout/README.md` (create)
+**Refs:** R9
+**Why:** the renderers ask the engine for positions.
+**Steps:**
+1. `layout.compute {project_id, parent_id?, mode, rankdir?}`: build the same level view as `graph.level_view` (call the graphapi function, not the RPC), node size from label length (`w = clamp(40 + 7 × chars, 80, 260)`), run `layered` or `force3d`; cache key `l:<mode>:<rankdir>:<parent_id>:<graph_version>` in the project cache (a hit returns `cached: true`); result per R9. The graph version is the project's version counter (bumped by incremental updates) — if none exists, use a hash of node and edge ids.
+2. Tests (suite `LayoutRpc`): second call is cached; a graph change gives a new version and a fresh layout.
+3. README: algorithms, options, performance numbers.
+**Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R Layout` → all pass.
+
+---
+
 ## Phase 4 — Python AI service and AI gateway [ARCH-DEPENDENT]
 
 ### MODULE P4-AIDEPS — Python AI service dependencies
@@ -12148,7 +12657,7 @@ inherits.scm:
 **Why:** one reproducible environment.
 **Steps:**
 1. `pyproject.toml`: `[project] name = "pv-ai"`, `version = "0.1.0"`, `requires-python = ">=3.12"`, `dependencies = []`; `[build-system] requires = ["hatchling"]`, `build-backend = "hatchling.build"`; `[tool.hatch.build.targets.wheel] packages = ["pv_ai"]`; `[tool.pytest.ini_options] testpaths = ["tests"]`.
-2. In `ai/` run: `uv add "fastapi>=0.115" "uvicorn[standard]>=0.30" "pydantic>=2.8" "pydantic-settings>=2.4" "httpx>=0.27" "anthropic>=0.40" "openai>=1.50" "qdrant-client>=1.11" "prometheus-client>=0.20"` and `uv add --dev "pytest>=8" "ruff>=0.6"`.
+2. In `ai/` run: `uv add "fastapi>=0.115" "uvicorn[standard]>=0.30" "pydantic>=2.8" "pydantic-settings>=2.4" "httpx>=0.27" "anthropic>=0.40" "openai>=1.50" "qdrant-client>=1.11" "pinecone>=5" "prometheus-client>=0.20"` and `uv add --dev "pytest>=8" "ruff>=0.6"`.
 **Verify:** `cd ai && uv run python -c "import fastapi, anthropic, openai, qdrant_client"` → no error.
 
 ---
@@ -12166,7 +12675,7 @@ inherits.scm:
 **Why:** foundations.
 **Steps:**
 1. `__init__.py`: `__version__ = "0.1.0"`. `core/__init__.py`: empty.
-2. `config.py`: `class Settings(BaseSettings)` with `model_config = SettingsConfigDict(env_prefix="PV_AI_", env_file=".env")`; fields `port: int = 8200`, `internal_token: str = ""`, `provider: str = "anthropic"`, `model: str = "claude-haiku-4-5-20251001"`, `base_url: str = ""`, `api_key: str = ""`, `embed_base_url: str = "https://api.openai.com/v1"`, `embed_model: str = "text-embedding-3-small"`, `embed_api_key: str = ""`, `qdrant_url: str = "http://localhost:6333"`, `prompts_dir: str = ""` (empty → `<repo>/contracts/prompts/v2` found relative to this file), `log_level: str = "INFO"`; `@lru_cache def get_settings() -> Settings`.
+2. `config.py`: `class Settings(BaseSettings)` with `model_config = SettingsConfigDict(env_prefix="PV_AI_", env_file=".env")`; fields `port: int = 8200`, `internal_token: str = ""`, `provider: str = "anthropic"`, `model: str = "claude-haiku-4-5-20251001"`, `base_url: str = ""`, `api_key: str = ""`, `embed_base_url: str = "https://api.openai.com/v1"`, `embed_model: str = "text-embedding-3-small"`, `embed_api_key: str = ""`, `qdrant_url: str = "http://localhost:6333"`, `vector_store: str = "qdrant"` (`qdrant` | `pinecone` | `memory`), `pinecone_api_key: str = ""`, `pinecone_index: str = "pv-nodes"`, `fallback_provider: str = ""` (empty = no fallback), `fallback_model: str = ""`, `fallback_api_key: str = ""`, `fallback_base_url: str = ""`, `timeout_s: float = 60`, `prompts_dir: str = ""` (empty → `<repo>/contracts/prompts/v2` found relative to this file), `log_level: str = "INFO"`; `@lru_cache def get_settings() -> Settings`.
 3. `logging.py`: `setup_logging(level)` with a JSON formatter (`{"ts","level","logger","msg"}` + extras); never logs request bodies.
 4. `errors.py`: `class AiServiceError(Exception): def __init__(self, status: int, code: str, message: str)`; `install_error_handlers(app)`: `AiServiceError` → its status and `{"error":{"code","message"}}`; `RequestValidationError` → 400 `validation_error`; any other → 500 `internal` with message "Internal server error".
 5. Tests: env override of `PV_AI_MODEL`; defaults.
@@ -12192,8 +12701,9 @@ inherits.scm:
 1. `@dataclass class LlmResult: text: str; model: str; input_tokens: int = 0; output_tokens: int = 0`. `class LlmProvider(Protocol): def complete(self, system: str, messages: list[dict], max_tokens: int, temperature: float = 0.2) -> LlmResult: ...`
 2. `AnthropicProvider(api_key, model, base_url="")` using `anthropic.Anthropic(...).messages.create(...)`; `OpenAICompatProvider(api_key, model, base_url)` using `openai.OpenAI(base_url=…, api_key=… or "none").chat.completions.create(...)` (system as the first message); both map SDK errors to `AiServiceError(502, "provider_error", ...)`, auth errors to `AiServiceError(502, "provider_auth", ...)`, rate limits to `AiServiceError(503, "provider_rate_limit", ...)`.
 3. `FakeProvider(responses: list[str])` returns the responses in order (records the calls) — used in all feature tests.
-4. `get_provider() -> LlmProvider` from settings; tests override it with FastAPI `app.dependency_overrides`.
-5. Tests: `FakeProvider` order; `get_provider` picks the class by `provider` setting (construct only; no network).
+4. `FallbackProvider(primary, secondary)`: calls `primary`; on `AiServiceError` with code `provider_error`, `provider_rate_limit` or a timeout, calls `secondary` once and logs `llm_fallback` (new architecture: "LLM gateway, OpenAI / Anthropic fallback").
+5. `get_provider() -> LlmProvider` from settings (wrapped in `FallbackProvider` when `fallback_provider` is set); tests override it with FastAPI `app.dependency_overrides`.
+6. Tests: `FakeProvider` order; `get_provider` picks the class by `provider` setting (construct only; no network); `FallbackProvider` uses the secondary after a `provider_error`.
 **Verify:** `cd ai && uv run pytest tests/core -q` → pass.
 
 #### P4-AIBASE-004 — Prompts, citations and JSON extraction
@@ -12218,6 +12728,16 @@ inherits.scm:
 4. `docs/service.md`: `## Run locally` (`uv run uvicorn pv_ai.app:app --reload --port 8200`), `## Configuration`, `## Adding a feature` (create `pv_ai/features/<name>/router.py` exposing `router`), `## Security` (internal token only; never exposed through the public gateway).
 **Verify:** `cd ai && uv run uvicorn pv_ai.app:app --port 8200` then `curl localhost:8200/healthz` → `{"ok":true}`.
 
+#### P4-AIBASE-006 — Streaming and SSE helper (new architecture)
+**Files:** `ai/pv_ai/core/llm.py` (edit) · `ai/pv_ai/core/sse.py` (create) · `ai/tests/core/test_sse.py` (create)
+**Refs:** R11
+**Why:** the AI gateway relays answers to the desktop as a stream.
+**Steps:**
+1. `LlmProvider.stream(system, messages, max_tokens, temperature=0.2) -> Iterator[str]` (text chunks) for both SDK providers (`messages.stream` / `stream=True`), `FakeProvider` (splits each response into 3 chunks) and `FallbackProvider` (falls back only if the primary fails before the first chunk). `stream` also returns the final `LlmResult` via `StopIteration.value`-free helper `collect_stream(iterator) -> (chunks, LlmResult)`.
+2. `sse.py`: `sse_event(event: str, data: dict) -> str` (`event: <e>\ndata: <json>\n\n`); `stream_response(chunks: Iterator[str], finish: Callable[[str], dict]) -> StreamingResponse` — yields `delta` events for each chunk, then `done` with `finish(full_text)` (features clean citations there), or `error` with the `AiServiceError` shape; media type `text/event-stream`, header `Cache-Control: no-cache`.
+3. Tests: event formatting; a fake stream produces 3 deltas and one done; an error mid-stream produces an `error` event.
+**Verify:** `cd ai && uv run pytest tests/core -q` → pass.
+
 ---
 
 ### MODULE P4-AIEXP — Feature: explain node
@@ -12236,6 +12756,15 @@ inherits.scm:
 2. `service.explain_node(req, provider) -> response`: `valid` map from the pack (node, parent, children, callers, callees, imports); render `explain_node` (v2) with `kind`, `name`, `file_path`, `project_notes = req.notes or "(none)"`, `context_json = json.dumps(req.pack, indent=1)`; `provider.complete(system, [{"role":"user","content": user}], max_tokens=900)`; `clean` citations; usage from the result.
 3. `router = APIRouter(prefix="/v1/explain", tags=["explain"])`; `POST /node` → `service.explain_node(body, Depends(get_provider))`.
 4. Tests with `FakeProvider` via `dependency_overrides`: invalid citation removed; missing auth header → 401.
+**Verify:** `cd ai && uv run pytest tests/explain -q` → pass.
+
+#### P4-AIEXP-002 — Streaming explain (new architecture)
+**Files:** `ai/pv_ai/features/explain/router.py` (edit) · `ai/pv_ai/features/explain/service.py` (edit) · `ai/tests/explain/test_explain_stream.py` (create)
+**Refs:** R11
+**Why:** show the explanation while it is written.
+**Steps:**
+1. `POST /v1/explain/node/stream` (same body) → `stream_response(provider.stream(...), finish=lambda text: <same response as /node with cleaned citations>)`.
+2. Test with `FakeProvider`: deltas then a `done` whose `cited_nodes` excludes an invalid id.
 **Verify:** `cd ai && uv run pytest tests/explain -q` → pass.
 
 ---
@@ -12286,6 +12815,15 @@ inherits.scm:
 3. Test with `FakeProvider`.
 **Verify:** `cd ai && uv run pytest tests/qa -q` → pass.
 
+#### P4-AIQA-003 — Streaming ask (new architecture)
+**Files:** `ai/pv_ai/features/qa/router.py` (edit) · `ai/pv_ai/features/qa/service.py` (edit) · `ai/tests/qa/test_ask_stream.py` (create)
+**Refs:** R11
+**Why:** the AI chat panel shows answers as they arrive.
+**Steps:**
+1. `POST /v1/qa/ask/stream` (same body) → `stream_response(...)`; `finish` applies the same `NEED:` split and citation cleaning as `ask`.
+2. Test with `FakeProvider`: the `done` event equals the non-streaming answer.
+**Verify:** `cd ai && uv run pytest tests/qa -q` → pass.
+
 ---
 
 ### MODULE P4-AIEMB — Feature: semantic search (embeddings)
@@ -12301,8 +12839,8 @@ inherits.scm:
 **Why:** swap providers and stores freely; test without network.
 **Steps:**
 1. `class Embedder(Protocol): def embed(self, texts: list[str]) -> list[list[float]]`; `OpenAICompatEmbedder(base_url, api_key, model)` (`client.embeddings.create`); `FakeEmbedder(dim=8)` (deterministic: hash of words into buckets, L2-normalized).
-2. `class VectorStore(Protocol): def upsert(self, collection: str, ids: list[str], vectors, payloads) -> None; def search(self, collection: str, vector, k: int) -> list[tuple[str, float]]`; `QdrantStore(url)` (create the collection on first upsert with cosine distance and the vector size; point ids = UUIDv5 of the node id, payload keeps `node_id`); `MemoryStore` (cosine similarity).
-3. Tests: `FakeEmbedder` + `MemoryStore`: a query close to one text ranks it first.
+2. `class VectorStore(Protocol): def upsert(self, collection: str, ids: list[str], vectors, payloads) -> None; def search(self, collection: str, vector, k: int) -> list[tuple[str, float]]`; `QdrantStore(url)` (create the collection on first upsert with cosine distance and the vector size; point ids = UUIDv5 of the node id, payload keeps `node_id`); `PineconeStore(api_key, index)` (one index, namespace = collection name; ids = node ids; metadata keeps `node_id`; the index is created with the vector size and cosine metric when missing) — used only in the hosted cloud (`vector_store = "pinecone"`); `MemoryStore` (cosine similarity); `get_store()` picks by the `vector_store` setting.
+3. Tests: `FakeEmbedder` + `MemoryStore`: a query close to one text ranks it first; `get_store()` returns the class named by the setting (construct only; no network).
 **Verify:** `cd ai && uv run pytest tests/embed -q` → pass.
 
 #### P4-AIEMB-002 — Router
@@ -12412,9 +12950,37 @@ CREATE INDEX IF NOT EXISTS ai_requests_user_day_idx ON ai_requests(user_id, crea
 2. README: endpoints, quotas, caching, privacy (packs are processed, not stored; only token counts are recorded).
 **Verify:** `pnpm dev` + `curl localhost:8104/healthz` → ok.
 
+#### P4-SAIGW-006 — SSE stream relay (new architecture)
+**Files:** `server/services/ai-gateway/src/stream.ts` (create) · `server/services/ai-gateway/src/stream.test.ts` (create) · `server/services/ai-gateway/src/routes.ts` (edit) · `server/services/ai-gateway/README.md` (edit)
+**Refs:** R11, R13
+**Why:** the new architecture streams AI answers to the desktop (SSE over HTTPS).
+**Steps:**
+1. `stream.ts`: `relaySse(upstream: Response, reply, onDone: (data) => void)` — pipes `text/event-stream` bytes from the Python service to the client unchanged while parsing events to catch the `done` data; client disconnect aborts the upstream request (`AbortController`).
+2. Routes: `POST /api/ai/stream/explain/node` → `/v1/explain/node/stream`; `POST /api/ai/stream/qa/ask` → `/v1/qa/ask/stream`. Flow: cache hit → send one `done` event from the cache; miss → quota check → relay (streams bypass the BullMQ queue but count toward `PV_AIGW_CONCURRENCY` with an in-process semaphore) → `onDone` stores the cache entry and records usage.
+3. Tests with a fake upstream stream: bytes relayed; cache filled; quota consumed once; cache hit returns a single `done`.
+4. README: "Streaming" section.
+**Verify:** `cd server/services/ai-gateway && pnpm test` → pass.
+
 ---
 
 ## Phase 4 — desktop features
+
+### MODULE P4-DDEPS — Desktop dependencies for the new views
+- **Type:** DEPS
+- **Lane:** DESKTOP
+- **Owns:** `desktop/package.json` · `desktop/pnpm-lock.yaml`
+- **Starts after:** P3-SIGN
+- **Goal:** add React Flow, D3 modules and React Three Fiber for the new architecture's 2D and 3D views.
+
+#### P4-DDEPS-001 — Add packages
+**Files:** `desktop/package.json` (edit) · `desktop/pnpm-lock.yaml` (edit)
+**Refs:** R3, R5
+**Why:** one DEPS task per phase edits the shared manifest.
+**Steps:**
+1. In `desktop/`: `pnpm add @xyflow/react@^12 d3-shape@^3 d3-selection@^3 d3-transition@^3 @react-three/fiber@^9 @react-three/drei@^10` and `pnpm add -D @types/d3-shape @types/d3-selection @types/d3-transition`.
+**Verify:** `cd desktop && pnpm typecheck && pnpm test` → pass.
+
+---
 
 ### MODULE P4-DAIM — Desktop AI v2 (direct and cloud)
 - **Type:** CODE
@@ -12479,6 +13045,17 @@ CREATE INDEX IF NOT EXISTS ai_requests_user_day_idx ON ai_requests(user_id, crea
 1. Channels: `pv:ai2.explainError {project_id, error_id}`, `pv:ai2.ask {project_id, question, history}`, `pv:ai2.changeSummary {project_id, preview}`, `pv:ai2.mode.get` → `'direct'|'cloud'`, `pv:ai2.mode.set {mode}`, `pv:ai2.quota` (cloud only; direct → null).
 2. Tests with a fake context and mocked service.
 **Verify:** `cd desktop && pnpm vitest run src/main/handlers/ai2.test.ts` → pass.
+
+#### P4-DAIM-007 — Streaming answers in cloud mode (new architecture)
+**Files:** `desktop/src/main/ai2/cloud.ts` (edit) · `desktop/src/main/ai2/cloud.test.ts` (edit) · `desktop/src/main/ai2/service.ts` (edit) · `desktop/src/main/handlers/ai2.ts` (edit) · `desktop/src/main/handlers/ai2.test.ts` (edit)
+**Refs:** R10, R11
+**Why:** the AI chat shows text while it is generated.
+**Steps:**
+1. `CloudAi2.askStream(question, pack, history, notes, onDelta)` → `CloudClient.stream('/api/ai/stream/qa/ask', …)`; `onDelta(text)` per `delta`; resolves with the `done` data.
+2. `Ai2Service.ask(…, onDelta?)`: in cloud mode with `onDelta` use `askStream` for the first round (the second retrieval round is not streamed). Direct mode is unchanged.
+3. Handler `pv:ai2.ask` accepts `request_id` and sends `ctx.send('pv:ai2.delta', {request_id, text})` for each chunk.
+4. Tests with a mocked client: deltas forwarded in order; final answer equals the `done` data.
+**Verify:** `cd desktop && pnpm vitest run src/main/ai2 src/main/handlers/ai2.test.ts` → all pass.
 
 ---
 
@@ -12592,6 +13169,16 @@ CREATE INDEX IF NOT EXISTS ai_requests_user_day_idx ON ai_requests(user_id, crea
 2. Test.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/qa/register.test.tsx` → pass.
 
+#### P4-DQA-004 — Streaming text in the chat (new architecture)
+**Files:** `desktop/src/renderer/src/features/qa/qa-store.ts` (edit) · `desktop/src/renderer/src/features/qa/qa-store.test.ts` (edit) · `desktop/src/renderer/src/features/qa/QaPanel.tsx` (edit)
+**Refs:** R10
+**Why:** the AI chat panel of the new architecture shows answers as they stream.
+**Steps:**
+1. The store sends a `request_id` with `pv:ai2.ask`, listens to `pv:ai2.delta` for that id and keeps `pendingText`; when the call resolves the final answer (cleaned citations) replaces it.
+2. The panel shows `pendingText` with a blinking cursor while waiting.
+3. Test: two delta events then the resolved answer.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/qa` → pass.
+
 ---
 
 ### MODULE P4-DCHANGE — Change preview UI
@@ -12650,11 +13237,78 @@ CREATE INDEX IF NOT EXISTS ai_requests_user_day_idx ON ai_requests(user_id, crea
 
 ---
 
+### MODULE P4-DRF2D — 2D view with React Flow and D3
+- **Type:** CODE
+- **Lane:** DESKTOP
+- **Owns:** `desktop/src/renderer/src/renderers/rf2d/**`
+- **Starts after:** P4-DDEPS · P4-ELAYOUT
+- **Goal:** the new architecture's 2D graph view: React Flow for nodes and interaction, D3 for animated flow edges, positions from the engine (`layout.compute`). Becomes the preferred 2D renderer; Cytoscape stays as "Classic".
+
+#### P4-DRF2D-001 — Element mapping
+**Files:** `desktop/src/renderer/src/renderers/rf2d/rf-elements.ts` (create) · `desktop/src/renderer/src/renderers/rf2d/rf-elements.test.ts` (create)
+**Refs:** R7, R10
+**Why:** pure mapping, easy to test.
+**Steps:**
+1. `toFlow(graph: ViewGraph): { nodes: Node[]; edges: Edge[] }` — node `type: 'pv'`, `position` from `graph.positions` (missing → a simple grid fallback), `data` = label, kind, badge, health, overlay style; edges with `data.points` from `graph.edgePoints`; overlay colors/opacity/width exactly as `cy2d/cy-style.ts` interprets `NodeStyle` / `EdgeStyle` (same kind colours from `view/model.ts`).
+2. Tests: positions used; fallback grid; overlay style applied.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/renderers/rf2d/rf-elements.test.ts` → pass.
+
+#### P4-DRF2D-002 — Renderer
+**Files:** `desktop/src/renderer/src/renderers/rf2d/PvNode.tsx` (create) · `desktop/src/renderer/src/renderers/rf2d/FlowEdge.tsx` (create) · `desktop/src/renderer/src/renderers/rf2d/rf-renderer.tsx` (create) · `desktop/src/renderer/src/renderers/rf2d/rf-renderer.test.tsx` (create)
+**Refs:** R10
+**Why:** implement `GraphRenderer` with React Flow.
+**Steps:**
+1. `PvNode`: kind dot, label, badge, health border; `FlowEdge`: path through `data.points` with `d3-shape` `line().curve(curveBasis)`; when the edge style has `animated: true` a dash offset animation (CSS) shows flow direction.
+2. `createRfRenderer(): GraphRenderer` — `mount(container)` creates a React root with `<ReactFlowProvider><ReactFlow nodeTypes edgeTypes onlyRenderVisibleElements fitView minZoom={0.05} /></ReactFlowProvider>`; `setGraph` replaces nodes/edges and fits; `updateStyles` changes only data; `select` highlights and centres; events map from React Flow callbacks (`onNodeClick`, `onNodeDoubleClick`, `onNodeMouseEnter`, `onNodeContextMenu`, `onPaneClick`) with client coordinates; a `ResizeObserver` keeps the view fitted unless the user zoomed or panned (same rule as `cy2d`); `destroy` unmounts.
+3. Tests (jsdom; stub `ResizeObserver`): mount + setGraph renders node labels; click emits `nodeClick` with the id.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/renderers/rf2d` → pass.
+
+#### P4-DRF2D-003 — Entry and parity check
+**Files:** `desktop/src/renderer/src/renderers/rf2d/index.ts` (create) · `desktop/src/renderer/src/renderers/rf2d/index.test.ts` (create)
+**Refs:** R10
+**Why:** register the renderer and prove it can replace Cytoscape.
+**Steps:**
+1. `export const renderer: RendererEntry = { id: 'rf2d', label: 'React Flow', mode: '2d', preferred: true, layout: 'engine', create: createRfRenderer }`.
+2. Test: `getRenderer('2d')` returns `rf2d` with the real discovery; with setting `view.renderer2d = 'cy2d'` it returns Cytoscape.
+3. Manual/e2e parity: the existing Playwright suite (`pnpm e2e`) passes with `rf2d` as the default; a real-app run at 860×560, laptop size and maximized shows the map, drill-down, overlays and reveal working (record in the task status file).
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/renderers && pnpm e2e` → pass.
+
+---
+
+### MODULE P4-DR3F — 3D view with React Three Fiber
+- **Type:** CODE
+- **Lane:** DESKTOP
+- **Owns:** `desktop/src/renderer/src/renderers/r3f/**`
+- **Starts after:** P4-DDEPS · P4-ELAYOUT
+- **Goal:** the new architecture's 3D graph view (Three.js + R3F) with positions from the engine's 3D force layout; 3d-force-graph stays as "Classic".
+
+#### P4-DR3F-001 — Scene data
+**Files:** `desktop/src/renderer/src/renderers/r3f/scene-data.ts` (create) · `desktop/src/renderer/src/renderers/r3f/scene-data.test.ts` (create)
+**Refs:** R10
+**Why:** pure data for instanced drawing.
+**Steps:**
+1. `toScene(graph: ViewGraph)` → `{ ids: string[]; positions: Float32Array (xyz per node); colors: Float32Array (rgb per node, overlay colour or kind colour, dimmed when `dimOthers`); sizes: Float32Array; segments: Float32Array (two xyz points per edge); edgeColors: Float32Array }`; missing positions → a sphere (Fibonacci) fallback.
+2. Tests: counts, overlay colour used, fallback positions distinct.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/renderers/r3f/scene-data.test.ts` → pass.
+
+#### P4-DR3F-002 — Renderer and entry
+**Files:** `desktop/src/renderer/src/renderers/r3f/GraphScene.tsx` (create) · `desktop/src/renderer/src/renderers/r3f/r3f-renderer.tsx` (create) · `desktop/src/renderer/src/renderers/r3f/index.ts` (create) · `desktop/src/renderer/src/renderers/r3f/r3f.test.tsx` (create)
+**Refs:** R10
+**Why:** implement `GraphRenderer` in 3D.
+**Steps:**
+1. `GraphScene`: `<Canvas>` with an `InstancedMesh` of spheres (one instance per node), `LineSegments` for edges, drei `OrbitControls`, a drei `<Html>` label for the hovered and selected nodes; pointer events on the instanced mesh give `instanceId` → node id.
+2. `createR3fRenderer(): GraphRenderer` mounts a React root with `GraphScene`; `setGraph` / `updateStyles` update the buffers; `select` moves the camera target to the node; `fit` frames the bounding sphere; `destroy` unmounts and disposes geometries.
+3. `index.ts`: `renderer = { id: 'r3f', label: 'React Three Fiber', mode: '3d', preferred: true, layout: 'engine', create: createR3fRenderer }`.
+4. Tests (jsdom has no WebGL: mock `@react-three/fiber`'s `Canvas` to render children into a div): mount/destroy; a simulated instance click emits `nodeClick`.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/renderers/r3f` → pass.
+
+---
+
 ### MODULE P4-UDOC — User guide for Phase 4
 - **Type:** DOCS
 - **Lane:** DOCS
 - **Owns:** `docs/user-guide/phase4/**`
-- **Starts after:** P4-DERRAI · P4-DQA · P4-DCHANGE · P4-DFIX · P4-DMCP · P4-LPACK
+- **Starts after:** P4-DERRAI · P4-DQA · P4-DCHANGE · P4-DFIX · P4-DMCP · P4-LPACK · P4-DRF2D · P4-DR3F · P4-EIPC · P4-ECACHE
 - **Goal:** document AI debugging, change previews, Q&A, MCP and plugins.
 
 #### P4-UDOC-001 — AI debugging and fixes
@@ -12681,13 +13335,21 @@ CREATE INDEX IF NOT EXISTS ai_requests_user_day_idx ON ai_requests(user_id, crea
 1. `## Connect Claude Code or Cursor (MCP)`, `## Tools your agent gets`, `## Add a language with a plugin`, `## Ruby, PHP and Kotlin packs`.
 **Verify:** `grep -c "^## " docs/user-guide/phase4/agents-and-plugins.md` → `4`.
 
+#### P4-UDOC-004 — Views, engine and VS Code link (new architecture)
+**Files:** `docs/user-guide/phase4/views-and-engine.md` (create)
+**Refs:** R9, R10
+**Why:** explain what changed for users with the new architecture.
+**Steps:**
+1. Sections: `## New 2D and 3D views` (how to switch back to Classic in Settings → Graph view), `## Faster reopen (local cache)` (where the cache lives, how to clear it), `## Instant updates on save`, `## VS Code uses the same engine`, `## Troubleshooting` (pipe/port busy, fallback to stdio or the 47101 bridge).
+**Verify:** `grep -c "^## " docs/user-guide/phase4/views-and-engine.md` → `5`.
+
 ---
 
 ### MODULE P4-SIGN — Phase 4 review and sign-off
 - **Type:** DOCS
 - **Lane:** DOCS
 - **Owns:** `docs/signoff/phase-4.md`
-- **Starts after:** P4-UDOC · P4-AIEVAL · P4-MCP
+- **Starts after:** P4-UDOC · P4-AIEVAL · P4-MCP · P4-EWATCH · P4-ELAYOUT
 - **Goal:** confirm Phase 4 is complete.
 
 #### P4-SIGN-001 — Phase 4 checklist
@@ -12718,7 +13380,7 @@ CREATE INDEX IF NOT EXISTS ai_requests_user_day_idx ON ai_requests(user_id, crea
 |---|---|
 | 1 | P5-CRPC · P5-AIDEPS · P5-GDIFF · P5-METRIC |
 | 2 | P5-SIM · P5-MLBASE · P5-DHIST |
-| 3 | P5-MLFAIL · P5-MLBOT · P5-MLFC · P5-MLREC · P5-DTIME · P5-DREC |
+| 3 | P5-MLFAIL · P5-MLBOT · P5-MLFC · P5-MLREC · P5-MLANOM · P5-DTIME · P5-DREC |
 | 4 | P5-SMLGW · P5-DSIM |
 | 5 | P5-DML |
 | 6 | P5-DPRED · P5-DFC |
@@ -12804,38 +13466,13 @@ CREATE INDEX IF NOT EXISTS ai_requests_user_day_idx ON ai_requests(user_id, crea
 ### MODULE P5-METRIC — Metrics history (SQLite) and dataset export
 - **Type:** CODE
 - **Lane:** ENGINE
-- **Owns:** `engine/modules/metrics/**` · `engine/third_party/sqlite/**`
-- **Starts after:** P4-SIGN
+- **Owns:** `engine/modules/metrics/**`
+- **Starts after:** P4-SIGN · P4-ECACHE
 - **Goal:** record per-node runtime statistics per minute on disk, query time series, and export an ML dataset.
 
-#### P5-METRIC-001 — SQLite library
-**Files:** `engine/third_party/sqlite/CMakeLists.txt` (create)
-**Refs:** R5
-**Why:** a small embedded database for history.
-**Steps:**
-1. Create:
-```cmake
-FetchContent_Declare(sqlite
-  URL https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip
-  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
-FetchContent_GetProperties(sqlite)
-if(NOT sqlite_POPULATED)
-  FetchContent_Populate(sqlite)
-endif()
-add_library(pv_tp_sqlite STATIC ${sqlite_SOURCE_DIR}/sqlite3.c)
-target_include_directories(pv_tp_sqlite PUBLIC ${sqlite_SOURCE_DIR})
-target_compile_definitions(pv_tp_sqlite PRIVATE SQLITE_THREADSAFE=1 SQLITE_OMIT_LOAD_EXTENSION)
-set_target_properties(pv_tp_sqlite PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
-if(MSVC)
-  target_compile_options(pv_tp_sqlite PRIVATE /W0)
-else()
-  target_compile_options(pv_tp_sqlite PRIVATE -w)
-  find_package(Threads REQUIRED)
-  target_link_libraries(pv_tp_sqlite PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
-endif()
-```
-2. If CMake warns that `FetchContent_Populate` is deprecated, that is acceptable (the archive has no CMake project). If it errors, replace the three `GetProperties/Populate` lines with `FetchContent_MakeAvailable(sqlite)` plus `SOURCE_SUBDIR pv_no_cmake` in the declare call.
-**Verify:** `cd engine && cmake --preset dev && cmake --build --preset dev --target pv_tp_sqlite` → builds.
+#### P5-METRIC-001 — SQLite library (REMOVED)
+**Files:** none
+**Why:** the SQLite library moved to P4-ECACHE-001 (same target `pv_tp_sqlite`), because the new architecture's local cache needs it in Phase 4.
 
 #### P5-METRIC-002 — Store
 **Files:** `engine/modules/metrics/CMakeLists.txt` (create) · `engine/modules/metrics/include/pv/metrics/store.hpp` (create) · `engine/modules/metrics/src/store.cpp` (create) · `engine/modules/metrics/tests/store_test.cpp` (create)
@@ -13093,11 +13730,30 @@ SandboxManager& sandboxes();
 
 ---
 
+### MODULE P5-MLANOM — Anomaly detection
+- **Type:** CODE
+- **Lane:** AI
+- **Owns:** `ai/pv_ai/features/ml_anomaly/**` · `ai/tests/ml_anomaly/**`
+- **Starts after:** P5-MLBASE
+- **Goal:** the new architecture's anomaly detection model: find unusual points in a node's runtime series (calls, error rate, latency).
+
+#### P5-MLANOM-001 — Detector and router
+**Files:** `ai/pv_ai/features/ml_anomaly/__init__.py` (create) · `ai/pv_ai/features/ml_anomaly/model.py` (create) · `ai/pv_ai/features/ml_anomaly/router.py` (create) · `ai/tests/ml_anomaly/test_anomaly.py` (create)
+**Refs:** R11
+**Why:** flag spikes and drops the thresholds miss.
+**Steps:**
+1. `detect(points: list[{t, v}], metric: str, sensitivity: float = 3.5) -> list[{t, v, score, direction: 'up'|'down'}]`: with ≥ 24 points use a robust z-score on the residual after removing a rolling median (window 12): `score = 0.6745 × |x − median| / MAD`; flag `score > sensitivity`; with ≥ 200 points additionally run `sklearn.ensemble.IsolationForest(contamination='auto', random_state=0)` on `(value, diff)` and keep points flagged by both; fewer than 24 points → no anomalies.
+2. Router prefix `/v1/ml/anomaly`, `POST /detect {series: [{node_id, metric, points}]}` → `{results: [{node_id, metric, anomalies}]}` (≤ 200 series, ≤ 5000 points each).
+3. Tests: a flat series with one spike → exactly that point; a short series → none; deterministic.
+**Verify:** `cd ai && uv run pytest tests/ml_anomaly -q` → pass.
+
+---
+
 ### MODULE P5-SMLGW — ML gateway service
 - **Type:** CODE
 - **Lane:** SERVER
 - **Owns:** `server/services/ml-gateway/**` · `server/db/migrations/0060_mlgw_jobs.sql` · `infra/compose/compose.ml-gateway.yml` · `infra/observability/prometheus/targets/ml-gateway.json`
-- **Starts after:** P5-MLFAIL · P5-MLBOT · P5-MLFC · P5-MLREC
+- **Starts after:** P5-MLFAIL · P5-MLBOT · P5-MLFC · P5-MLREC · P5-MLANOM
 - **Goal:** authenticated access to ML per cloud project, training jobs through the `pv-ml` queue, and a job record.
 
 #### P5-SMLGW-001 — Package, config, migration
@@ -13141,6 +13797,15 @@ CREATE TABLE IF NOT EXISTS ml_jobs (
 1. Route file `[{"prefix":"/api/ml","upstream_env":"PV_MLGW_URL","auth_required":true,"rate_limit_per_min":30}]`; template files (port 8109; body limit 60 MB for training uploads — set Fastify `bodyLimit`).
 2. README: endpoints, data sent (per-minute statistics only, no code), retention.
 **Verify:** `pnpm dev` + `curl localhost:8109/healthz` → ok.
+
+#### P5-SMLGW-004 — Anomaly route (new architecture)
+**Files:** `server/services/ml-gateway/src/routes.ts` (edit) · `server/services/ml-gateway/src/app.test.ts` (edit) · `server/services/ml-gateway/README.md` (edit)
+**Refs:** R13
+**Why:** expose anomaly detection to the desktop.
+**Steps:**
+1. `POST /api/ml/anomaly {series}` (JWT) → Python `/v1/ml/anomaly/detect`.
+2. Test with the fake AI client.
+**Verify:** `cd server/services/ml-gateway && pnpm test` → pass.
 
 ---
 
@@ -13339,6 +14004,15 @@ CREATE TABLE IF NOT EXISTS ml_jobs (
 2. Tests with mocks.
 **Verify:** `cd desktop && pnpm vitest run src/main/handlers/ml.test.ts` → pass.
 
+#### P5-DML-003 — Anomalies channel (new architecture)
+**Files:** `desktop/src/main/handlers/ml.ts` (edit) · `desktop/src/main/handlers/ml.test.ts` (edit)
+**Refs:** R10
+**Why:** the forecast view marks unusual points.
+**Steps:**
+1. `pv:ml.anomalies {series}` → `POST /api/ml/anomaly` when signed in; otherwise a local fallback: robust z-score (same formula as P5-MLANOM step 1 without IsolationForest) computed in the main process.
+2. Tests: cloud path and local fallback.
+**Verify:** `cd desktop && pnpm vitest run src/main/handlers/ml.test.ts` → pass.
+
 ---
 
 ### MODULE P5-DPRED — Prediction UI
@@ -13414,6 +14088,16 @@ CREATE TABLE IF NOT EXISTS ml_jobs (
 2. `ForecastPanel` (right `forecast`, "Forecast", order 50): selected node name; metric toggle (Errors / Latency); chart; predicted state badge with confidence; button "Check visible modules" → `refreshIndicators()`; empty state when there is no history ("Run your app with an agent to collect history").
 3. Register the panel and command `forecast.refresh`.
 4. Tests (render with sample data).
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/forecast` → pass.
+
+#### P5-DFC-004 — Anomaly markers (new architecture)
+**Files:** `desktop/src/renderer/src/features/forecast/forecast-store.ts` (edit) · `desktop/src/renderer/src/features/forecast/ForecastChart.tsx` (edit) · `desktop/src/renderer/src/features/forecast/forecast.test.tsx` (edit)
+**Refs:** R10
+**Why:** show unusual points on the history line.
+**Steps:**
+1. `forecastNode` also calls `pv:ml.anomalies` for the history series and stores the points.
+2. `ForecastChart` draws a red circle with a `<title>` ("Unusual: <value>") at each anomaly.
+3. Test: one anomaly renders one marker.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/forecast` → pass.
 
 ---
@@ -14207,7 +14891,7 @@ CREATE TABLE IF NOT EXISTS ml_jobs (
 - **Lane:** INFRA
 - **Owns:** `infra/helm/**` · `infra/k8s/**`
 - **Starts after:** P6-SBILL · P6-SSSO · P6-SAUDIT
-- **Goal:** one Helm chart deploying all services with the scaling design's replica counts (Kubernetes at ≥ 500 users; enterprise on-prem).
+- **Goal:** one Helm chart deploying all services of the new architecture (R13 groups A–D; TimescaleDB for runtime metrics; Qdrant, not Pinecone, for vectors) with the scaling design's replica counts (Kubernetes at ≥ 500 users; enterprise on-prem).
 
 #### P6-ONPREM-001 — Chart skeleton and values
 **Files:** `infra/helm/project-visualizer/Chart.yaml` (create) · `infra/helm/project-visualizer/values.yaml` (create) · `infra/helm/project-visualizer/templates/_helpers.tpl` (create)
@@ -14215,7 +14899,7 @@ CREATE TABLE IF NOT EXISTS ml_jobs (
 **Why:** configuration in one place.
 **Steps:**
 1. `Chart.yaml`: `apiVersion: v2`, `name: project-visualizer`, `version: 0.1.0`, `appVersion: "0.1.0"`, `type: application`.
-2. `values.yaml`: `image.registry`, `image.tag`; `services:` map with one entry per service (`gateway`, `auth`, `projects`, `sync`, `collector`, `realtime`, `ingest`, `ai-gateway`, `ml-gateway`, `licensing`, `billing`, `audit`, `sso`, `feedback`, `ai`) each `{port, replicas: 2, resources: {requests, limits}}` using the scaling design (API gateway 2 vCPU/4 GB, AI 8 vCPU/16 GB, etc.); `workers: {parse-worker: {replicas: 2, resources}}`; `autoscaling` for `parse-worker` and `ai` (min 2, max 6, CPU 70 %); `ingress: {enabled, className, host, tls}`; `externalSecrets: {name}` (one Secret with all env vars); `stores:` external URLs (managed Postgres/Redis/Mongo/S3/Qdrant recommended).
+2. `values.yaml`: `image.registry`, `image.tag`; `services:` map with one entry per service (`gateway`, `auth`, `projects`, `sync`, `runtime-agg`, `realtime`, `ai-gateway`, `ml-gateway`, `licensing`, `billing`, `audit`, `sso`, `feedback`, `ai`) — each entry also has `group: A|B|C|D` (R13) used for node affinity so a small cluster can mirror the four-instance layout each `{port, replicas: 2, resources: {requests, limits}}` using the scaling design (API gateway 2 vCPU/4 GB, AI 8 vCPU/16 GB, etc.); `workers: {parse-worker: {replicas: 2, resources}}`; `autoscaling` for `parse-worker` and `ai` (min 2, max 6, CPU 70 %); `ingress: {enabled, className, host, tls}`; `externalSecrets: {name}` (one Secret with all env vars); `stores:` external URLs (managed Postgres/Redis/Mongo/S3/Qdrant recommended).
 3. `_helpers.tpl`: `pv.fullname`, `pv.labels`, `pv.image`.
 **Verify:** `helm lint infra/helm/project-visualizer` → 0 failures (warnings allowed until templates exist).
 
@@ -14412,6 +15096,16 @@ These are the server, AI-service and infrastructure modules (Lane SERVER, AI or 
 - The desktop app (Electron + React), its IPC channels (R10) and all local features. Local features must keep working with **no server at all**.
 - The runtime agents and the local hub (R12), the VS Code extension, and the business modules.
 
+
+### H5. Applied on 2026-09-26
+
+The new architecture (diagram + scaling summary) is in `docs/architecture/incoming/`; the comparison and every module decision are in `docs/architecture/incoming/diff.md`. Founder decisions: keep direct AI mode next to the cloud AI gateway (D1); bend the built desktop and engine toward the diagram step by step instead of rewriting them — engine local server over a named pipe + TCP 7700, local SQLite + LevelDB cache, native file watcher, engine layouts, React Flow / R3F views, each with the old path kept as a fallback (D2–D6); Qdrant with a Pinecone adapter (D7); what-if simulation stays local (D8); server services stay separate processes grouped on four instances; Git import is kept and runs on the desktop (D9).
+
+- **New modules:** P3-SRTAGG, P3-DRTUP, P4-EWATCH, P4-EIPC, P4-ECACHE, P4-ELAYOUT, P4-DDEPS, P4-DRF2D, P4-DR3F, P5-MLANOM.
+- **Superseded (never built):** P3-SCOLL → P3-SRTAGG · P3-SING, P3-SPW → P3-DCIMP · P3-DREMOTE → P3-DRTUP.
+- **New tasks at the end of built modules:** P0-ARCH-008…010, P1-RPC-009, P1-EAPP-004, P1-BUILDR-012, P1-DENG-008, P1-DVIEW-008, P2-DBRIDGE-007, P2-VSC-006, P4-CRPC-005…006, P4-INCR-005.
+- **Amended (not built yet):** P2-INFRA, P2-SSYNC, P2-DCLOUD, P3-SRT, P3-DCIMP, P3-UDOC, P3-SIGN, P4-AIDEPS, P4-AIBASE, P4-AIEXP, P4-AIQA, P4-AIEMB, P4-SAIGW, P4-DAIM, P4-DQA, P4-UDOC, P4-SIGN, P5-METRIC (SQLite moved to P4-ECACHE), P5-SMLGW, P5-DML, P5-DFC, P6-ONPREM.
+
 ---
 
 ## PART I — HOW TO EXTEND OR CHANGE THIS FILE
@@ -14434,14 +15128,14 @@ These are the server, AI-service and infrastructure modules (Lane SERVER, AI or 
 
 | Phase | Modules | Tasks |
 |---|---|---|
-| 0 | 17 | 118 |
-| 1 | 48 | 291 |
-| 2 | 30 | 157 |
-| 3 | 24 | 98 |
-| 4 | 25 | 73 |
-| 5 | 20 | 51 |
+| 0 | 17 | 121 |
+| 1 | 48 | 296 |
+| 2 | 30 | 160 |
+| 3 | 26 | 107 |
+| 4 | 32 | 102 |
+| 5 | 21 | 55 |
 | 6 | 23 | 69 |
-| **All** | **187** | **857** |
+| **All** | **197** | **910** |
 
 ### J2. All modules
 
@@ -14457,7 +15151,7 @@ These are the server, AI-service and infrastructure modules (Lane SERVER, AI or 
 | P0-ADR | Architecture decision records and versions | DOCS | DOCS | 12 | P0-GUIDE |
 | P0-STD | Coding standards and engineering workflow | DOCS | DOCS | 11 | P0-GUIDE |
 | P0-KM | Documentation and knowledge management | DOCS | DOCS | 5 | P0-GUIDE |
-| P0-ARCH | High-level system architecture [ARCH-DEPENDENT] | DOCS | DOCS | 7 | P0-REQ · P0-NFR · P0-ADR |
+| P0-ARCH | High-level system architecture [ARCH-DEPENDENT] | DOCS | DOCS | 10 | P0-REQ · P0-NFR · P0-ADR |
 | P0-COMP | Core component designs | DOCS | DOCS | 6 | P0-ARCH |
 | P0-DOM | Data and domain model | DOCS | DOCS | 5 | P0-ARCH |
 | P0-QA | Quality assurance and testing strategy | DOCS | DOCS | 6 | P0-ARCH |
@@ -14469,25 +15163,25 @@ These are the server, AI-service and infrastructure modules (Lane SERVER, AI or 
 | P1-CORE | Core types and utilities | ENGINE | CODE | 16 | P1-EDEPS |
 | P1-GRAPH | In-memory graph store and level views | ENGINE | CODE | 9 | P1-CORE |
 | P1-FS | File discovery | ENGINE | CODE | 8 | P1-CORE |
-| P1-RPC | JSON-RPC framing, method table and stdio server | ENGINE | CODE | 8 | P1-CORE |
+| P1-RPC | JSON-RPC framing, method table and stdio server | ENGINE | CODE | 9 | P1-CORE |
 | P1-PARSE | Parsing framework (language-neutral) | ENGINE | CODE | 6 | P1-CORE |
 | P1-PY | Python language adapter | ENGINE | CODE | 17 | P1-PARSE |
-| P1-BUILDR | Graph builder | ENGINE | CODE | 11 | P1-GRAPH · P1-FS · P1-PARSE |
+| P1-BUILDR | Graph builder | ENGINE | CODE | 12 | P1-GRAPH · P1-FS · P1-PARSE |
 | P1-SESS | Projects, background loading and registry | ENGINE | CODE | 6 | P1-BUILDR · P1-RPC |
-| P1-EAPP | pv-engine executable | ENGINE | CODE | 3 | P1-SESS · P1-PY |
+| P1-EAPP | pv-engine executable | ENGINE | CODE | 4 | P1-SESS · P1-PY |
 | P1-GAPI | Graph query RPC methods | ENGINE | CODE | 6 | P1-SESS · P1-PY |
 | P1-IMPACT | "What breaks if I change this?" | ENGINE | CODE | 4 | P1-SESS · P1-PY |
 | P1-CTX | AI context packs | ENGINE | CODE | 3 | P1-SESS · P1-PY |
 | P1-CRPC | Phase 1 RPC contracts (JSON Schemas) | CONTRACTS | CODE | 11 | P0-SIGN |
 | P1-PROMPT | Prompt templates v1 | CONTRACTS | DOCS | 3 | P0-SIGN |
 | P1-DDEPS | Desktop project setup and dependencies | DESKTOP | DEPS | 7 | P0-SIGN |
-| P1-DENG | Engine process client (main process) | DESKTOP | CODE | 7 | P1-DDEPS |
+| P1-DENG | Engine process client (main process) | DESKTOP | CODE | 8 | P1-DDEPS |
 | P1-DPRE | Preload bridge and shared bridge types | DESKTOP | CODE | 3 | P1-DDEPS |
 | P1-DMAIN | Main process core and basic IPC handlers | DESKTOP | CODE | 11 | P1-DENG · P1-DPRE |
 | P1-DSHELL | Renderer shell (layout, registry, store, UI kit) | DESKTOP | CODE | 13 | P1-DPRE |
 | P1-DAPI | Renderer API layer | DESKTOP | CODE | 5 | P1-DSHELL |
 | P1-DAI | AI service in the main process (direct mode) | DESKTOP | CODE | 9 | P1-DMAIN · P1-PROMPT |
-| P1-DVIEW | Render-agnostic view core and canvas | DESKTOP | CODE | 7 | P1-DAPI |
+| P1-DVIEW | Render-agnostic view core and canvas | DESKTOP | CODE | 8 | P1-DAPI |
 | P1-D2D | 2D renderer (Cytoscape) | DESKTOP | CODE | 4 | P1-DVIEW |
 | P1-DIMPORT | Welcome screen and project opening | DESKTOP | CODE | 7 | P1-DAPI |
 | P1-DNAV | Navigation (breadcrumb and history) | DESKTOP | CODE | 5 | P1-DVIEW |
@@ -14523,8 +15217,8 @@ These are the server, AI-service and infrastructure modules (Lane SERVER, AI or 
 | P2-DDEPS | Desktop dependencies for Phase 2 | DESKTOP | DEPS | 1 | P1-SIGN |
 | P2-DCOMP | Component interaction system | DESKTOP | CODE | 6 | P1-SIGN |
 | P2-DDEPNAV | Dependency navigation UI | DESKTOP | CODE | 7 | P1-SIGN · P2-CRPC |
-| P2-DBRIDGE | Desktop ↔ VS Code bridge | DESKTOP | CODE | 6 | P2-DDEPS · P2-LOCATE |
-| P2-VSC | VS Code extension | VSCODE | CODE | 5 | P2-DBRIDGE |
+| P2-DBRIDGE | Desktop ↔ VS Code bridge | DESKTOP | CODE | 7 | P2-DDEPS · P2-LOCATE |
+| P2-VSC | VS Code extension | VSCODE | CODE | 6 | P2-DBRIDGE |
 | P2-CMCON | Code Motion contracts | CONTRACTS | CODE | 3 | P1-SIGN |
 | P2-CMREC | Python execution recorder | AGENT | CODE | 6 | P1-SIGN |
 | P2-CMENG | Code Motion engine | ENGINE | CODE | 4 | P2-CMCON |
@@ -14537,7 +15231,7 @@ These are the server, AI-service and infrastructure modules (Lane SERVER, AI or 
 | P2-SAUTH | Auth service and @pv/authz | SERVER | CODE | 12 | P2-SDB · P2-OBS |
 | P2-SGW | API gateway and Nginx | SERVER | CODE | 5 | P2-SAUTH |
 | P2-SPROJ | Projects service (organizations, members, projects) | SERVER | CODE | 6 | P2-SAUTH |
-| P2-SSYNC | Snapshot sync service | SERVER | CODE | 5 | P2-SPROJ |
+| P2-SSYNC | Snapshot sync service | SERVER | CODE | 6 | P2-SPROJ |
 | P2-DCLOUD | Desktop cloud features (account, share, open shared) | DESKTOP | CODE | 7 | P2-SSYNC · P2-SNAP · P2-SGW |
 | P2-DIARY | Design diary | DOCS | DOCS | 2 | P1-SIGN |
 | P2-UDOC | User guide for Phase 2 features | DOCS | DOCS | 4 | P2-DCLOUD · P2-VSC · P2-DDEPNAV · P2-DCOMP · P2-CMUI |
@@ -14557,43 +15251,52 @@ These are the server, AI-service and infrastructure modules (Lane SERVER, AI or 
 | P3-DRT | Live runtime overlay UI | DESKTOP | CODE | 8 | P3-DHUB · P3-RTSYNC · P3-MODTR |
 | P3-DHEALTH | Health UI | DESKTOP | CODE | 4 | P3-HEALTH · P3-DRT |
 | P3-DERR | Errors UI (paste-an-error and runtime errors) | DESKTOP | CODE | 4 | P3-ERRMAP · P3-DRT |
-| P3-SCOLL | Collector service (remote runtime events) [ARCH-DEPENDENT] | SERVER | CODE | 4 | P2-SIGN |
-| P3-SRT | Realtime service (WebSocket fan-out) [ARCH-DEPENDENT] | SERVER | CODE | 3 | P3-SCOLL |
-| P3-SING | Ingest service (cloud Git imports) [ARCH-DEPENDENT] | SERVER | CODE | 3 | P2-SIGN |
-| P3-SPW | Parse worker (headless engine in the cloud) [ARCH-DEPENDENT] | SERVER | CODE | 3 | P3-SING |
-| P3-DCIMP | Cloud import from Git (desktop UI) | DESKTOP | CODE | 2 | P3-SING · P2-DCLOUD |
-| P3-DREMOTE | Remote runtime (deployed apps via the cloud) | DESKTOP | CODE | 3 | P3-SRT · P3-SCOLL · P3-DHUB |
+| P3-SCOLL | Collector service (remote runtime events) (SUPERSEDED by P3-SRTAGG) | SERVER | CODE | 4 | P2-SIGN |
+| P3-SRT | Realtime service (team sync and notifications WebSocket) [ARCH-DEPENDENT] | SERVER | CODE | 3 | P2-SIGN |
+| P3-SRTAGG | Runtime aggregation service (team runtime metrics and alerts) | SERVER | CODE | 5 | P2-SIGN |
+| P3-SING | Ingest service (cloud Git imports) (SUPERSEDED by P3-DCIMP) | SERVER | CODE | 3 | P2-SIGN |
+| P3-SPW | Parse worker (headless engine in the cloud) (SUPERSEDED by P3-DCIMP) | SERVER | CODE | 3 | P3-SING |
+| P3-DCIMP | Import from Git for a team (local analysis, shared map) | DESKTOP | CODE | 2 | P2-DCLOUD · P1-DGIT |
+| P3-DREMOTE | Remote runtime (deployed apps via the cloud) (SUPERSEDED by P3-DRTUP) | DESKTOP | CODE | 3 | P3-SRT · P3-SCOLL · P3-DHUB |
+| P3-DRTUP | Team runtime sharing (desktop) | DESKTOP | CODE | 4 | P3-SRTAGG · P3-SRT · P3-DRT · P3-DHEALTH · P2-DCLOUD |
 | P3-RTE2E | Runtime end-to-end test | AGENT | CODE | 2 | P3-AGPY · P3-RTCORE · P3-HEALTH · P3-ERRMAP |
-| P3-UDOC | User guide for Phase 3 | DOCS | DOCS | 2 | P3-DRT · P3-DHEALTH · P3-DERR · P3-DREMOTE · P3-DCIMP |
-| P3-SIGN | Phase 3 review and sign-off | DOCS | DOCS | 2 | P3-UDOC · P3-RTE2E · P3-LCPP · P3-LRUST · P3-LCS · P3-AGNODE · P3-SPW |
-| P4-CRPC | Phase 4 contracts | CONTRACTS | CODE | 4 | P3-SIGN |
+| P3-UDOC | User guide for Phase 3 | DOCS | DOCS | 2 | P3-DRT · P3-DHEALTH · P3-DERR · P3-DRTUP · P3-DCIMP |
+| P3-SIGN | Phase 3 review and sign-off | DOCS | DOCS | 2 | P3-UDOC · P3-RTE2E · P3-LCPP · P3-LRUST · P3-LCS · P3-AGNODE · P3-SRTAGG · P3-DRTUP |
+| P4-CRPC | Phase 4 contracts | CONTRACTS | CODE | 6 | P3-SIGN |
 | P4-PROMPT | Prompt templates v2 | CONTRACTS | DOCS | 4 | P3-SIGN |
-| P4-INCR | Incremental re-parse and live file sync | ENGINE | CODE | 4 | P3-SIGN |
+| P4-INCR | Incremental re-parse and live file sync | ENGINE | CODE | 5 | P3-SIGN |
 | P4-FIXSYNC | Auto-fix detection and live resolution sync | ENGINE | CODE | 2 | P4-INCR |
 | P4-CHANGE | Change impact preview with risk scoring | ENGINE | CODE | 2 | P3-SIGN |
 | P4-GROUND | AI grounding packs | ENGINE | CODE | 4 | P3-SIGN |
 | P4-MCP | MCP server for AI coding agents | ENGINE | CODE | 3 | P4-GROUND |
 | P4-PLUGIN | Dynamic language plugins | ENGINE | CODE | 3 | P3-SIGN |
 | P4-LPACK | Plugin packs (Ruby, PHP, Kotlin) | ENGINE | DOCS | 4 | P4-PLUGIN |
+| P4-EWATCH | Native file watcher | ENGINE | CODE | 2 | P3-SIGN |
+| P4-EIPC | Engine local server (named pipe, Unix socket, TCP 7700) | ENGINE | CODE | 4 | P3-SIGN · P1-RPC · P1-EAPP |
+| P4-ECACHE | Local cache (SQLite + LevelDB) | ENGINE | CODE | 4 | P3-SIGN · P1-BUILDR |
+| P4-ELAYOUT | Engine layouts (layered 2D, force 3D) | ENGINE | CODE | 3 | P4-ECACHE · P4-CRPC |
 | P4-AIDEPS | Python AI service dependencies | AI | DEPS | 1 | P3-SIGN |
-| P4-AIBASE | AI service core | AI | CODE | 5 | P4-AIDEPS · P4-PROMPT |
-| P4-AIEXP | Feature: explain node | AI | CODE | 1 | P4-AIBASE |
+| P4-AIBASE | AI service core | AI | CODE | 6 | P4-AIDEPS · P4-PROMPT |
+| P4-AIEXP | Feature: explain node | AI | CODE | 2 | P4-AIBASE |
 | P4-AIERR | Feature: explain error | AI | CODE | 1 | P4-AIBASE |
-| P4-AIQA | Feature: Q&A and change summaries | AI | CODE | 2 | P4-AIBASE |
+| P4-AIQA | Feature: Q&A and change summaries | AI | CODE | 3 | P4-AIBASE |
 | P4-AIEMB | Feature: semantic search (embeddings) | AI | CODE | 2 | P4-AIBASE |
 | P4-AIEVAL | AI quality evaluation | AI | CODE | 2 | P4-AIEXP · P4-AIERR · P4-AIQA |
-| P4-SAIGW | AI gateway service | SERVER | CODE | 5 | P4-AIEXP · P4-AIERR · P4-AIQA · P4-AIEMB |
-| P4-DAIM | Desktop AI v2 (direct and cloud) | DESKTOP | CODE | 6 | P4-SAIGW · P4-GROUND · P4-PROMPT |
+| P4-SAIGW | AI gateway service | SERVER | CODE | 6 | P4-AIEXP · P4-AIERR · P4-AIQA · P4-AIEMB |
+| P4-DDEPS | Desktop dependencies for the new views | DESKTOP | DEPS | 1 | P3-SIGN |
+| P4-DAIM | Desktop AI v2 (direct and cloud) | DESKTOP | CODE | 7 | P4-SAIGW · P4-GROUND · P4-PROMPT |
 | P4-DFIX | Live file sync and fix tracking UI | DESKTOP | CODE | 3 | P4-INCR · P4-FIXSYNC |
 | P4-DERRAI | AI error explanation UI | DESKTOP | CODE | 3 | P4-DAIM |
-| P4-DQA | Ask the codebase (Q&A) | DESKTOP | CODE | 3 | P4-DAIM |
+| P4-DQA | Ask the codebase (Q&A) | DESKTOP | CODE | 4 | P4-DAIM |
 | P4-DCHANGE | Change preview UI | DESKTOP | CODE | 3 | P4-DAIM · P4-CHANGE |
 | P4-DMCP | MCP setup screen | DESKTOP | CODE | 1 | P4-MCP |
-| P4-UDOC | User guide for Phase 4 | DOCS | DOCS | 3 | P4-DERRAI · P4-DQA · P4-DCHANGE · P4-DFIX · P4-DMCP · P4-LPACK |
-| P4-SIGN | Phase 4 review and sign-off | DOCS | DOCS | 2 | P4-UDOC · P4-AIEVAL · P4-MCP |
+| P4-DRF2D | 2D view with React Flow and D3 | DESKTOP | CODE | 3 | P4-DDEPS · P4-ELAYOUT |
+| P4-DR3F | 3D view with React Three Fiber | DESKTOP | CODE | 2 | P4-DDEPS · P4-ELAYOUT |
+| P4-UDOC | User guide for Phase 4 | DOCS | DOCS | 4 | P4-DERRAI · P4-DQA · P4-DCHANGE · P4-DFIX · P4-DMCP · P4-LPACK · P4-DRF2D · P4-DR3F · P4-EIPC · P4-ECACHE |
+| P4-SIGN | Phase 4 review and sign-off | DOCS | DOCS | 2 | P4-UDOC · P4-AIEVAL · P4-MCP · P4-EWATCH · P4-ELAYOUT |
 | P5-CRPC | Phase 5 contracts | CONTRACTS | CODE | 3 | P4-SIGN |
 | P5-GDIFF | Graph diff (time travel) | ENGINE | CODE | 2 | P4-SIGN |
-| P5-METRIC | Metrics history (SQLite) and dataset export | ENGINE | CODE | 5 | P4-SIGN |
+| P5-METRIC | Metrics history (SQLite) and dataset export | ENGINE | CODE | 5 | P4-SIGN · P4-ECACHE |
 | P5-SIM | What-if simulation engine | ENGINE | CODE | 4 | P5-GDIFF |
 | P5-AIDEPS | ML dependencies | AI | DEPS | 1 | P4-SIGN |
 | P5-MLBASE | ML core (datasets, features, model store) | AI | CODE | 2 | P5-AIDEPS · P4-AIBASE |
@@ -14601,14 +15304,15 @@ These are the server, AI-service and infrastructure modules (Lane SERVER, AI or 
 | P5-MLBOT | Bottleneck prediction | AI | CODE | 1 | P5-MLBASE |
 | P5-MLFC | Health forecasting | AI | CODE | 1 | P5-MLBASE |
 | P5-MLREC | Decision recommendation engine | AI | CODE | 1 | P5-MLBASE · P4-AIQA |
-| P5-SMLGW | ML gateway service | SERVER | CODE | 3 | P5-MLFAIL · P5-MLBOT · P5-MLFC · P5-MLREC |
+| P5-MLANOM | Anomaly detection | AI | CODE | 1 | P5-MLBASE |
+| P5-SMLGW | ML gateway service | SERVER | CODE | 4 | P5-MLFAIL · P5-MLBOT · P5-MLFC · P5-MLREC · P5-MLANOM |
 | P5-DHIST | Git history access (main process) | DESKTOP | CODE | 3 | P4-SIGN |
 | P5-DTIME | Time-travel view | DESKTOP | CODE | 3 | P5-DHIST · P5-GDIFF |
 | P5-DREC | Recommendation card (local rules) | DESKTOP | CODE | 3 | P5-CRPC |
 | P5-DSIM | Simulation workspace | DESKTOP | CODE | 5 | P5-SIM · P5-DREC |
-| P5-DML | ML access (main process) | DESKTOP | CODE | 2 | P5-SMLGW · P5-METRIC |
+| P5-DML | ML access (main process) | DESKTOP | CODE | 3 | P5-SMLGW · P5-METRIC |
 | P5-DPRED | Prediction UI | DESKTOP | CODE | 3 | P5-DML · P5-DREC |
-| P5-DFC | Health forecast UI | DESKTOP | CODE | 3 | P5-DML · P5-DREC |
+| P5-DFC | Health forecast UI | DESKTOP | CODE | 4 | P5-DML · P5-DREC |
 | P5-UDOC | User guide for Phase 5 | DOCS | DOCS | 2 | P5-DTIME · P5-DSIM · P5-DPRED · P5-DFC |
 | P5-SIGN | Phase 5 review and sign-off | DOCS | DOCS | 2 | P5-UDOC · P5-SMLGW |
 | P6-BIZ | Business model and monetization | BUSINESS | DOCS | 5 | P5-SIGN |
