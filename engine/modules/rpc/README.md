@@ -30,6 +30,14 @@ Requests without an `id` are notifications: the handler runs, but nothing is ret
 
 `StdioServer::notify(method, params)` writes a framed notification. It is thread-safe and may be called from any thread (for example from a background project loader). Modules only see the `Notifier` interface.
 
+## Connections and fan-out
+
+For `pv-engine serve` (P4-EIPC) the engine talks to several local clients at once.
+
+- `ByteStream` is a small interface over any bidirectional byte stream (named pipe, Unix socket, TCP socket, in-memory pair in tests): `read_some`, `write_all`, `close`.
+- `Connection` runs the same framing and dispatcher as the stdio server over a `ByteStream`. All connections share one dispatch mutex, so method handlers still run one at a time. An optional gate can reject requests before dispatch (used for the TCP token handshake).
+- `FanoutNotifier` sends each notification to every registered sink (the stdio server and each connection). A sink that throws, for example a closed connection, is removed.
+
 ## Adding a method
 
 In your module's `src/register.cpp`:
