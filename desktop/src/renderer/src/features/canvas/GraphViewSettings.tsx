@@ -2,6 +2,10 @@ import { useEffect } from 'react';
 import { getRenderer, listRenderers } from '../../view/renderers';
 import { useViewPrefs } from '../../view/view-prefs';
 
+// Names for renderers that do not carry a label of their own (the Classic ones from Phase 1).
+const KNOWN_LABELS: Record<string, string> = { cy2d: 'Classic (Cytoscape)', fg3d: 'Classic (3d-force-graph)' };
+const nameOf = (r: { id?: string; label?: string } | undefined) => r?.label ?? KNOWN_LABELS[r?.id ?? ''] ?? r?.id ?? 'none';
+
 // Settings → Graph view: which renderer draws the 2D and the 3D map.
 export function GraphViewSettings() {
   const prefs = useViewPrefs();
@@ -18,10 +22,10 @@ export function GraphViewSettings() {
       <label style={{ display: 'grid', gap: 4 }}>
         <span>{title}</span>
         <select value={value} onChange={(e) => void prefs.setRenderer(mode, e.target.value)} aria-label={`${title} renderer`}>
-          <option value="">Default ({fallback?.label ?? fallback?.id ?? 'none'})</option>
+          <option value="">Default ({nameOf(fallback)})</option>
           {options.map((r) => (
             <option key={r.id} value={r.id}>
-              {r.label ?? r.id}
+              {nameOf(r)}
             </option>
           ))}
         </select>
