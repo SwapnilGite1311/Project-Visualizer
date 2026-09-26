@@ -30,10 +30,13 @@ function bridgeLogs(stream: NodeJS.ReadableStream, onLine?: (line: string) => vo
 export const spawnEngine: Spawner = (command, args) => {
   const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
   bridgeLogs(child.stderr);
+  // Writing to a crashed engine fails with EPIPE; without a listener that would be an uncaught main-process error.
+  child.stdin.on('error', (err) => console.error('[pv-engine] stdin:', err.message));
+  child.on('error', (err) => console.error('[pv-engine] process:', err.message));
   return {
     transport: {
       write: (data) => {
-        child.stdin.write(data);
+        if (child.stdin.writable) child.stdin.write(data);
       },
       onData: (cb) => {
         child.stdout.on('data', cb);
@@ -69,10 +72,13 @@ export const spawnEngineOverPipe: PipeSpawner = async (command, pipe) => {
     throw err;
   }
   exitedEarly.catch(() => undefined); // later exits are reported through onExit
+  // A socket without an 'error' listener throws in the main process (Electron's "A JavaScript error occurred" box)
+  // when the engine goes away, e.g. while the app quits. The engine's exit is reported through onExit instead.
+  socket.on('error', (err) => console.error('[pv-engine] pipe:', err.message));
   return {
     transport: {
       write: (data) => {
-        socket.write(data);
+        if (!socket.destroyed && socket.writable) socket.write(data);
       },
       onData: (cb) => {
         socket.on('data', cb);

@@ -57,7 +57,11 @@ export class BridgeServer {
   private listen(port: number): Promise<WebSocketServer> {
     return new Promise((resolve, reject) => {
       const wss = new WebSocketServer({ host: '127.0.0.1', port });
-      wss.once('listening', () => resolve(wss));
+      wss.once('listening', () => {
+        // Later server errors must not become uncaught main-process errors.
+        wss.on('error', (e) => console.error('[bridge]', e.message));
+        resolve(wss);
+      });
       wss.once('error', (e) => {
         wss.close();
         reject(e);
@@ -69,6 +73,7 @@ export class BridgeServer {
     const timer = setTimeout(() => {
       if (!this.authenticated.has(socket)) socket.close(4001, 'authentication timeout');
     }, AUTH_TIMEOUT_MS);
+    socket.on('error', () => socket.terminate()); // a broken client connection: drop it quietly
     socket.on('close', () => {
       clearTimeout(timer);
       this.authenticated.delete(socket);

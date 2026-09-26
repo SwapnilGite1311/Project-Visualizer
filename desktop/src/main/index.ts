@@ -15,6 +15,12 @@ import { createMainWindow } from './window';
 let win: BrowserWindow | null = null;
 let engine: EngineService | null = null;
 
+// Safety net: an unexpected error in the main process is written to <userData>/logs/main.log (with its stack) instead
+// of Electron's "A JavaScript error occurred in the main process" box, and the app keeps running.
+const crashLog = createLogger(join(app.getPath('userData'), 'logs', 'main.log'));
+process.on('uncaughtException', (e) => crashLog('error', 'uncaught exception in the main process', e instanceof Error ? e.stack : String(e)));
+process.on('unhandledRejection', (e) => crashLog('error', 'unhandled promise rejection in the main process', e instanceof Error ? e.stack : String(e)));
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
