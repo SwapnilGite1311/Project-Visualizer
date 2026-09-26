@@ -14037,7 +14037,7 @@ CREATE TABLE IF NOT EXISTS ml_jobs (
 **Refs:** R10
 **Why:** run predictions and color the map.
 **Steps:**
-1. Store: `method: 'model'|'heuristic'|'local'`, `predictions`, `bottlenecks`, `job`, `loading`; `predict()`: cloud available and a cloud project chosen (setting `project.cloudProject.<root>`) → `pv:ml.predictFailures` + `pv:ml.predictBottlenecks`; else local; overlay `prediction` (priority 25): probability > 0.7 `#ef4444`, > 0.4 `#f97316`, > 0.2 `#eab308`, badge percent — applied to nodes and their ancestors (max probability wins; ancestors via `getAncestors`); push to `useRecommendInputs.setFailurePredictions`. `train()` → `pv:ml.train` then poll `pv:ml.job` every 3 s.
+1. Store: `method: 'model'|'heuristic'|'local'`, `predictions`, `bottlenecks`, `job`, `loading`; `predict()`: cloud available and a cloud project chosen (setting `project.cloudProject.<root>`) → `pv:ml.predictFailures` + `pv:ml.predictBottlenecks`; else local; overlay `prediction` (priority 31, above health 30 so the requested result is visible): ring (border) color by probability > 0.7 `#ef4444`, > 0.4 `#f97316`, > 0.2 `#eab308`, badge `NN% risk` (the health fill keeps showing the state now) — applied to nodes and their ancestors (max probability wins; ancestors via `getAncestors`); push to `useRecommendInputs.setFailurePredictions`. `train()` → `pv:ml.train` then poll `pv:ml.job` every 3 s.
 2. Tests.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/prediction/prediction-store.test.ts` → pass.
 
@@ -14074,8 +14074,8 @@ CREATE TABLE IF NOT EXISTS ml_jobs (
 **Refs:** R10
 **Why:** forecasts for the selected node and the visible modules.
 **Steps:**
-1. `forecastNode(nodeId)`: `metrics.series` for `error_rate` and `p95_ms`, last 48 h, hourly; forecast 24 h (cloud `pv:ml.forecast` when available, else local); store history + forecast + predicted states.
-2. `refreshIndicators()`: for each node of the current level view (max 30) forecast `error_rate` → if predicted state is worse than its current health → overlay `forecast` (priority 26) `{badge: 'risk up'}`; push all forecasts to `useRecommendInputs.setForecasts`.
+1. `forecastNode(nodeId)`: `metrics.series` for `error_rate` and `p95_ms`, last 48 h, hourly (only hours whose `calls` > 0 count as history; the engine returns every hour); forecast 24 h (cloud `pv:ml.forecast` when available, else local); store history + forecast + predicted states.
+2. `refreshIndicators()`: for each node of the current level view (max 30) forecast `error_rate` → if predicted state is worse than its current health → overlay `forecast` (priority 32, above health) `{badge: 'risk up'}`; push all forecasts to `useRecommendInputs.setForecasts`.
 3. Tests.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/forecast/forecast-store.test.ts` → pass.
 
