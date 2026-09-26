@@ -17,7 +17,7 @@
   color: var(--fg, #e8e8ea);
   font-size: 12px;
   cursor: pointer;
-  overflow: hidden;
+  position: relative;
   white-space: nowrap;
 }
 .pv-rf-dot {
@@ -27,16 +27,24 @@
   border-radius: 50%;
 }
 .pv-rf-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A small tag on the top-right corner, so a badge never hides the name. */
 .pv-rf-badge {
-  flex: none;
-  margin-left: auto;
-  padding: 1px 6px;
+  position: absolute;
+  top: -9px;
+  left: calc(100% - 14px);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
   border-radius: 8px;
   font-size: 10px;
-  background: rgba(0, 0, 0, 0.35);
+  line-height: 16px;
+  color: #fff;
+  background: color-mix(in srgb, var(--pv-kind) 70%, #000);
 }
 .pv-rf-pulse {
   animation: pv-rf-pulse 1.2s ease-in-out infinite;
