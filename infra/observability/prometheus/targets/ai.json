@@ -1,0 +1,1 @@
+[{ "targets": ["ai:8200"], "labels": { "service": "ai" } }]
