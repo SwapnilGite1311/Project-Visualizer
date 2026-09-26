@@ -49,6 +49,8 @@ export function PredictionPanel() {
   }, [root]);
 
   if (!projectId) return <EmptyState title="Open a project to predict failures" />;
+  const shown = s.predictions.filter((p) => p.probability >= 0.01).slice(0, 20);
+  const quiet = s.predictions.length - s.predictions.filter((p) => p.probability >= 0.01).length;
   const training = s.job?.status === 'queued' || s.job?.status === 'running';
   return (
     <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 10, height: '100%', overflow: 'auto' }}>
@@ -86,11 +88,11 @@ export function PredictionPanel() {
       {!s.loading && s.method && s.predictions.length === 0 && <EmptyState title="Nothing to predict yet" detail="Run your app with an agent to collect history." />}
       {!s.loading && !s.method && <EmptyState title="Press 'Predict now' to see which parts are likely to fail" />}
 
-      {s.predictions.length > 0 && (
+      {shown.length > 0 && (
         <section aria-label="Likely failures">
           <strong>Likely failures</strong>
           <ul style={{ listStyle: 'none', margin: '4px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {s.predictions.slice(0, 20).map((p) => (
+            {shown.map((p) => (
               <li key={p.node_id}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button type="button" title={p.node_id} onClick={() => void revealNode(p.node_id)} style={{ ...linkStyle, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -103,8 +105,14 @@ export function PredictionPanel() {
               </li>
             ))}
           </ul>
+          {quiet > 0 && (
+            <div style={{ color: 'var(--fg-muted)', marginTop: 6 }}>
+              {quiet} other element{quiet === 1 ? ' shows' : 's show'} no risk.
+            </div>
+          )}
         </section>
       )}
+      {!s.loading && s.method && s.predictions.length > 0 && shown.length === 0 && <div>No element shows a risk of failing.</div>}
 
       {s.bottlenecks.length > 0 && (
         <section aria-label="Likely bottlenecks">

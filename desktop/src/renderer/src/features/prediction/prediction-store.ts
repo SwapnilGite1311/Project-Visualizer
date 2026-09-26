@@ -54,7 +54,8 @@ export function colorFor(probability: number): string | null {
   return null;
 }
 
-// Each risky node and the modules that contain it; a container shows the riskiest thing inside it.
+// Each risky node and the modules that contain it; a container shows the riskiest thing inside it. The risk is a ring
+// and a badge, so the health fill (the state now) stays visible; it sits above health (30) because it is asked for.
 export function buildPredictionOverlay(predictions: FailurePrediction[], ancestors: Record<string, string[]>): Overlay {
   const best: Record<string, number> = {};
   for (const p of predictions) {
@@ -63,9 +64,9 @@ export function buildPredictionOverlay(predictions: FailurePrediction[], ancesto
   }
   const nodes: Record<string, NodeStyle> = {};
   for (const [id, probability] of Object.entries(best)) {
-    nodes[id] = { color: colorFor(probability) ?? undefined, badge: `${Math.round(probability * 100)}%` };
+    nodes[id] = { borderColor: colorFor(probability) ?? undefined, badge: `${Math.round(probability * 100)}% risk` };
   }
-  return { priority: 25, nodes, edges: {} };
+  return { priority: 31, nodes, edges: {} };
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));

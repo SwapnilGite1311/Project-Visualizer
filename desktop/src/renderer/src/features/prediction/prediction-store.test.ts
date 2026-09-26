@@ -57,13 +57,13 @@ describe('prediction overlay', () => {
       ],
       { a: ['mod'], b: ['mod'], c: ['other'] },
     );
-    expect(o.priority).toBe(25);
-    expect(o.nodes.a).toEqual({ color: '#ef4444', badge: '75%' });
-    expect(o.nodes.b.color).toBe('#f97316');
-    expect(o.nodes.c.color).toBe('#eab308');
+    expect(o.priority).toBe(31);
+    expect(o.nodes.a).toEqual({ borderColor: '#ef4444', badge: '75% risk' });
+    expect(o.nodes.b.borderColor).toBe('#f97316');
+    expect(o.nodes.c.borderColor).toBe('#eab308');
     expect(o.nodes.d).toBeUndefined();
-    expect(o.nodes.mod).toEqual({ color: '#ef4444', badge: '75%' });
-    expect(o.nodes.other.badge).toBe('25%');
+    expect(o.nodes.mod).toEqual({ borderColor: '#ef4444', badge: '75% risk' });
+    expect(o.nodes.other.badge).toBe('25% risk');
   });
 });
 
@@ -76,8 +76,8 @@ describe('prediction store', () => {
     expect(s.predictions[0]).toMatchObject({ node_id: 'function:a.py#f', top_factors: ['recent errors', 'high complexity', 'stalls'] });
     expect(s.predictions[0].probability).toBeCloseTo(0.66, 6);
     const overlay = useAppStore.getState().overlays.prediction;
-    expect(overlay.nodes['function:a.py#f'].badge).toBe('66%');
-    expect(overlay.nodes['module:app'].color).toBe('#f97316');
+    expect(overlay.nodes['function:a.py#f'].badge).toBe('66% risk');
+    expect(overlay.nodes['module:app'].borderColor).toBe('#f97316');
     expect(overlay.nodes['function:a.py#g']).toBeUndefined();
     expect(useRecommendInputs.getState().failurePredictions?.method).toBe('local');
     expect(fake.invokeCalls.some((c) => c.channel === 'pv:ml.predictFailures')).toBe(false);
