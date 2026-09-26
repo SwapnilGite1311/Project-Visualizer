@@ -31,7 +31,7 @@ describe('history handlers', () => {
 
   it('opens a commit as its own project and closes it again', async () => {
     const { ctx, request } = withEngine();
-    const opened = await ctx.call('pv:history.open', { root: 'C:/code/app', sha: 'abc1234' });
+    const opened = (await ctx.call('pv:history.open', { root: 'C:/code/app', sha: 'abc1234' })) as { project_id: string; path: string };
     expect(opened).toEqual({ project_id: 'p9', path: '/user-data/history/12345678-abc1234' });
     expect(vi.mocked(openCommit).mock.calls[0][2].replace(/\\/g, '/')).toBe('/user-data/history');
     expect(request).toHaveBeenCalledWith('project.open', { root_path: '/user-data/history/12345678-abc1234' });
