@@ -1,6 +1,5 @@
-from pv_ai.features.ml_failures.model import predict, train
-
 from failures_data import synthetic_rows
+from pv_ai.features.ml_failures.model import predict, train
 
 
 def test_enough_data_trains_a_model_that_ranks_risky_nodes_first():
