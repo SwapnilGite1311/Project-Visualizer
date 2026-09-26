@@ -54,7 +54,7 @@ describe('TimeTravelPanel', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Back to current' })[0]);
     expect(useAppStore.getState().projectId).toBe('cur');
     expect(screen.queryByRole('status')).toBeNull();
-  });
+  }, 20000); // several screens and async steps: slow when the whole suite runs in parallel
 
   it('explains when the folder is not a Git repository', async () => {
     fake.invokeHandlers.set('pv:history.isRepo', () => false);

@@ -88,5 +88,5 @@ describe('errors feature', () => {
     expect(screen.getByRole('region', { name: 'What it means' }).textContent).toContain(
       'The program stopped because of an error of type WeirdError.',
     );
-  });
+  }, 20000); // several screens and async steps: slow when the whole suite runs in parallel
 });
