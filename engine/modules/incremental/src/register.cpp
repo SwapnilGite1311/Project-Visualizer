@@ -14,7 +14,8 @@ void pv_register_incremental(pv::session::Registry& reg) {
     reg.methods.add("watch.start", [&reg](const pv::rpc::Json& p) {
         const auto project = reg.projects.get_ready(pv::rpc::require_string(p, "project_id"));
         const int interval = pv::rpc::clamp_int(pv::rpc::optional_int(p, "interval_ms", 1000), 250, 60000);
-        pv::incremental::manager().start(project, reg.adapters, reg.notifier, interval);
+        const auto mode = pv::incremental::parse_watch_mode(pv::rpc::optional_string(p, "mode", "auto"));
+        pv::incremental::manager().start(project, reg.adapters, reg.notifier, interval, mode);
         return pv::incremental::manager().status(project->id());
     });
     reg.methods.add("watch.stop", [&reg](const pv::rpc::Json& p) {

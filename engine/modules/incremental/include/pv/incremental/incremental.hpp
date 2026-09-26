@@ -41,15 +41,20 @@ ChangeSet diff_states(const StateMap& before, const StateMap& after);
 graph::Graph rebuild_graph(const parse::AdapterRegistry& adapters, const std::string& root, const ExtractionMap& extractions);
 GraphDiff diff_graphs(const graph::Graph& before, const graph::Graph& after);
 
-// Keeps each watched project's graph in sync with its files: polls file states, re-parses changed files only,
-// relinks everything from the cached extractions, swaps the graph and sends graph.changed.
+// How changes are noticed: native OS events (fswatch) or polling file states. Auto = native when possible.
+enum class WatchMode { Auto, Native, Poll };
+WatchMode parse_watch_mode(const std::string& text);  // "auto" | "native" | "poll"; anything else -> PvError(InvalidParams)
+
+// Keeps each watched project's graph in sync with its files: gets change events from the OS (or polls file states),
+// re-parses changed files only, relinks everything from the cached extractions, swaps the graph and sends graph.changed.
 class IncrementalManager {
 public:
     ~IncrementalManager();
+    // Native mode that is not available -> PvError(Unsupported). Calling start again with another mode restarts the watch.
     void start(std::shared_ptr<session::Project> project, const parse::AdapterRegistry& adapters, rpc::Notifier& notifier,
-               int interval_ms);
+               int interval_ms, WatchMode mode = WatchMode::Auto);
     void stop(const std::string& project_id);
-    nlohmann::json status(const std::string& project_id) const;  // {watching, interval_ms, seeded, last_change_ms}
+    nlohmann::json status(const std::string& project_id) const;  // {watching, interval_ms, seeded, last_change_ms, mode}
     // Returns the files changed. Public for tests.
     std::vector<std::string> apply_changes(session::Project& project, const parse::AdapterRegistry& adapters, rpc::Notifier& notifier,
                                            const ChangeSet& changes);

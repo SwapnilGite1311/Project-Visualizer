@@ -14,6 +14,15 @@ RPC: `watch.start {project_id, interval_ms?}` (default 1000, 250–60000), `watc
 
 `engine.shutdown` stops all watchers first. A watcher also stops by itself when its project is closed.
 
+## Native watching
+
+`watch.start` takes `mode`: `auto` (default: native when the operating system watcher works, else polling), `native` (error `-32005` when not available) or `poll`. The result and `watch.status` report the `mode` in use.
+
+- **Native mode** (module `fswatch`): OS events arrive about 30 ms after a save (debounced). A saved file that is already known is re-parsed at once; a new file, a folder change, lost events or an unknown deleted path run one full compare of file states (so `.gitignore` rules still apply). A full compare also runs every 10 s as a safety net.
+- **Poll mode:** compares file states every `interval_ms` (250–60000, default 1000).
+
+Measured on the Windows dev machine (Debug build): save → `graph.changed` in about 60 ms (target < 100 ms; see the `IncrNativeWatch` test output).
+
 ## Cost
 
 Only parsing is expensive, and only changed files are parsed: saving one file costs one file's parse plus a relink. Relinking works from memory and takes milliseconds for thousands of files. A scan only reads directory entries (no file contents), so an idle project costs almost nothing.
