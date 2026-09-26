@@ -1,0 +1,65 @@
+.pv-rf-root {
+  position: absolute;
+  inset: 0;
+}
+.pv-rf-root .react-flow {
+  background: transparent;
+}
+.pv-rf-node {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-style: solid;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pv-kind) 18%, var(--bg-elevated, #1f2430));
+  color: var(--fg, #e8e8ea);
+  font-size: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.pv-rf-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.pv-rf-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pv-rf-badge {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  background: rgba(0, 0, 0, 0.35);
+}
+.pv-rf-pulse {
+  animation: pv-rf-pulse 1.2s ease-in-out infinite;
+}
+@keyframes pv-rf-pulse {
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--pv-kind) 35%, transparent);
+  }
+}
+.pv-rf-animated {
+  stroke-dasharray: 6 4;
+  animation: pv-rf-dash 0.8s linear infinite;
+}
+@keyframes pv-rf-dash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+.pv-rf-particles {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 4;
+}
