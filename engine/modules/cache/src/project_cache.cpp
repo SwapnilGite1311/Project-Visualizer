@@ -18,6 +18,7 @@
 #include <leveldb/options.h>
 
 #include <cctype>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <map>
@@ -112,9 +113,15 @@ ProjectCache* shared_cache(const std::string& root) {
     for (char& c : key) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 #endif
     key = cache_root() + "|" + key;  // tests change PV_CACHE_DIR between cases
+    static std::map<std::string, std::chrono::steady_clock::time_point> failed;  // e.g. another engine holds the lock
     std::lock_guard<std::mutex> lock(mutex);
     auto& slot = caches[key];
-    if (!slot) slot = ProjectCache::open(root);
+    if (slot) return slot.get();
+    const auto now = std::chrono::steady_clock::now();
+    const auto f = failed.find(key);
+    if (f != failed.end() && now - f->second < std::chrono::seconds(60)) return nullptr;  // do not retry for every file
+    slot = ProjectCache::open(root);
+    if (!slot) failed[key] = now;
     return slot.get();
 }
 
