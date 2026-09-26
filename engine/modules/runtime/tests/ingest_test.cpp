@@ -17,32 +17,40 @@ TEST(RuntimeIngest, WindowsListenersAndCounters) {
     auto err = event("c", f.root + "/app/utils.py", 9, "b");
     err.status = "error";
     err.error = runtime::EventError{"ValueError", "bad id", ""};
-    const auto first = runtime::hub().ingest(*f.project,
-                                             {event("a", f.root + "/main.py", 8), event("b", f.root + "/app/services.py", 11, "a"), err},
+    // Ordinary calls wait for the 250 ms window.
+    const auto first = runtime::hub().ingest(*f.project, {event("a", f.root + "/main.py", 8), event("b", f.root + "/app/services.py", 11, "a")},
                                              notifier, 1000);
-    EXPECT_EQ(first.accepted, 3);
-    EXPECT_EQ(first.mapped, 3);
+    EXPECT_EQ(first.accepted, 2);
+    EXPECT_EQ(first.mapped, 2);
     EXPECT_EQ(first.dropped, 0);
     EXPECT_TRUE(notifier.items().empty());
 
-    auto stall = event("d", f.root + "/app/utils.py", 5, "", "t2", 500, 7000);
-    stall.kind = "stall";
-    runtime::hub().ingest(*f.project, {stall}, notifier, 1300);
-    const auto items = notifier.items();
+    // An error is sent at once, with the rest of its window (a crash may be the last thing a program sends).
+    runtime::hub().ingest(*f.project, {err}, notifier, 1050);
+    auto items = notifier.items();
     ASSERT_EQ(items.size(), 1u);
     EXPECT_EQ(items[0].first, "runtime.update");
     const auto& u = items[0].second;
     EXPECT_EQ(u["node_hits"]["method:app/services.py#UserService.get_user"], 1);
-    EXPECT_EQ(u["node_hits"]["function:app/utils.py#normalize"], 1);
+    EXPECT_EQ(u["node_hits"]["function:app/utils.py#is_valid"], 1);
     EXPECT_EQ(u["edge_flows"]["function:main.py#main|method:app/services.py#UserService.get_user"], 1);
     EXPECT_EQ(u["edge_flows"]["method:app/services.py#UserService.get_user|function:app/utils.py#is_valid"], 1);
     ASSERT_EQ(u["errors"].size(), 1u);
     EXPECT_EQ(u["errors"][0]["type"], "ValueError");
-    ASSERT_EQ(u["stalls"].size(), 1u);
-    EXPECT_EQ(u["stalls"][0]["duration_ns"], 7000);
+    EXPECT_TRUE(u["stalls"].empty());
     EXPECT_EQ(u["window_start_ns"], 100);
-    EXPECT_EQ(u["window_end_ns"], 7500);
-    EXPECT_EQ(batches, (std::vector<std::size_t>{3, 1}));
+
+    // So is a hang.
+    auto stall = event("d", f.root + "/app/utils.py", 5, "", "t2", 500, 7000);
+    stall.kind = "stall";
+    runtime::hub().ingest(*f.project, {stall}, notifier, 1100);
+    items = notifier.items();
+    ASSERT_EQ(items.size(), 2u);
+    EXPECT_EQ(items[1].second["node_hits"]["function:app/utils.py#normalize"], 1);
+    ASSERT_EQ(items[1].second["stalls"].size(), 1u);
+    EXPECT_EQ(items[1].second["stalls"][0]["duration_ns"], 7000);
+    EXPECT_EQ(items[1].second["window_end_ns"], 7500);
+    EXPECT_EQ(batches, (std::vector<std::size_t>{2, 1, 1}));
 
     const auto status = runtime::hub().status(f.project->id(), 1400);
     EXPECT_TRUE(status.active);

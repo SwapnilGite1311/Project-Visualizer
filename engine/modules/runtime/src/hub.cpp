@@ -108,7 +108,12 @@ IngestResult RuntimeHub::ingest(const session::Project& project, const std::vect
         }
         if (!mapped.empty()) state->last_event_ms = now_ms;
         if (state->window_start_ms == 0) state->window_start_ms = now_ms;
-        if (now_ms - state->window_start_ms >= kWindowMs) {
+        // Errors and hangs are sent at once: they may be the program's last events (a crash), and the window
+        // otherwise closes only when a later batch arrives.
+        const bool urgent = std::any_of(mapped.begin(), mapped.end(), [](const MappedEvent& m) {
+            return !m.node_id.empty() && (is_error_event(m.ev) || m.ev.kind == "stall");
+        });
+        if (urgent || now_ms - state->window_start_ms >= kWindowMs) {
             update = {{"project_id", project.id()},
                       {"window_start_ns", state->window_start_ns},
                       {"window_end_ns", state->window_end_ns},
