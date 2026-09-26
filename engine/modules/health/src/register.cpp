@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <mutex>
 #include <unordered_map>
@@ -58,7 +59,11 @@ void pv_register_health(pv::session::Registry& reg) {
         {
             std::lock_guard lock(last_refresh->first);
             int64_t& last = last_refresh->second[project_id];
-            if (last != 0 && now - last < kThrottleMs) return;
+            // Throttled, except for errors and hangs: a crash's events are the last ones, so a skipped refresh would never come.
+            const bool urgent = std::any_of(batch.begin(), batch.end(), [](const pv::runtime::MappedEvent& m) {
+                return pv::runtime::is_error_event(m.ev) || m.ev.kind == "stall";
+            });
+            if (!urgent && last != 0 && now - last < kThrottleMs) return;
             last = now;
         }
         refresh(reg, project_id, now);
