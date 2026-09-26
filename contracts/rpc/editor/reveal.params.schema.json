@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/editor/reveal.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "file_path",
+    "line"
+  ],
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "line": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "column": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

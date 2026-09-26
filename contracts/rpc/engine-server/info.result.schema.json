@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/engine-server/info.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "pid",
+    "pipe",
+    "tcp_port",
+    "clients"
+  ],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pipe": {
+      "type": "string"
+    },
+    "tcp_port": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "clients": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "client_id",
+          "client",
+          "transport"
+        ],
+        "properties": {
+          "client_id": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "client": {
+            "type": "string",
+            "enum": [
+              "desktop",
+              "vscode",
+              "tool"
+            ]
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "stdio",
+              "pipe",
+              "tcp"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

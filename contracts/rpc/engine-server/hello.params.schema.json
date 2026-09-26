@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/engine-server/hello.params.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "token": {
+      "type": "string"
+    },
+    "client": {
+      "type": "string",
+      "enum": [
+        "desktop",
+        "vscode",
+        "tool"
+      ]
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pv.local/schemas/rpc/engine-server/hello.result.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "client_id"
+  ],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "client_id": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}
