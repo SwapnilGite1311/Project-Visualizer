@@ -4,6 +4,7 @@
 #include <thread>
 
 #include "pv/builder/builder.hpp"
+#include "pv/builder/extraction_cache.hpp"
 #include "pv/core/paths.hpp"
 #include "pv/core/text.hpp"
 
@@ -32,7 +33,20 @@ std::vector<parse::FileExtraction> extract_all(const parse::AdapterRegistry& ada
             if (adapter) {
                 try {
                     const std::string text = core::read_file_text(files[i].abs_path);
-                    result[i] = adapter->extract(rel, text);
+                    ExtractionCache* cache = extraction_cache();
+                    if (cache) {
+                        // Same content + same language = same extraction; only the path can differ (e.g. empty files).
+                        const std::string hash = content_hash(text);
+                        if (auto hit = cache->lookup(files[i].abs_path, adapter->id(), hash)) {
+                            result[i] = std::move(*hit);
+                            result[i].file_path = rel;
+                        } else {
+                            result[i] = adapter->extract(rel, text);
+                            cache->store(files[i].abs_path, adapter->id(), hash, result[i]);
+                        }
+                    } else {
+                        result[i] = adapter->extract(rel, text);
+                    }
                 } catch (const std::exception& e) {
                     result[i].file_path = rel;
                     result[i].language = adapter->id();
