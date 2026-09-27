@@ -6043,8 +6043,8 @@ Same rules as the main-process loader: sorted paths, each default called, missin
 **Steps:**
 1. Each area shows `panelsFor(...)`; a side area with no panels collapses (its grid column becomes 0), the bottom row disappears when empty.
 2. `WorkspaceRail`: a column on the far left with one button per dashboard (icon + short title, the description as tooltip and `aria-describedby`), the active one highlighted, `role="tablist"` with arrow-key navigation; below 900 px window width only icons.
-3. Commands `workspace.<id>` "Go to the <title> dashboard" with shortcuts `Ctrl+1` … `Ctrl+6` (registered by the Layout from `workspaces()`).
-4. Tests: filtering, collapsing, switching by click and keyboard.
+3. A feature that shows a panel the open dashboard hides (`showPanel`) moves to a dashboard that has it.
+4. Tests: filtering, collapsing, switching by click and keyboard, following panel requests.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/core` → pass.
 
 #### P1-DSHELL-016 — Icon set
@@ -13361,7 +13361,7 @@ CREATE INDEX IF NOT EXISTS ai_requests_user_day_idx ON ai_requests(user_id, crea
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/renderers/r3f` → pass.
 
 #### P4-DR3F-003 — 3D legend in plain words
-**Files:** `desktop/src/renderer/src/renderers/r3f/GraphScene.tsx` (edit) · `desktop/src/renderer/src/renderers/r3f/r3f.test.tsx` (edit)
+**Files:** `desktop/src/renderer/src/renderers/r3f/GraphScene.tsx` (edit) · `desktop/src/renderer/src/renderers/r3f/scene-data.ts` (edit) · `desktop/src/renderer/src/renderers/r3f/scene-data.test.ts` (edit)
 **Refs:** R10
 **Why:** "imports / calls / inherits / references" are developer words.
 **Steps:**
@@ -14212,7 +14212,8 @@ CREATE TABLE IF NOT EXISTS ml_jobs (
 **Why:** decide what each job needs.
 **Steps:**
 1. Six dashboards: **Explore** (map; left Search, Insights, Pinned; right Details, Explanation; no bottom) · **Watch it run** (right Health, Details; bottom Runtime, Errors, Fixes) · **Change safely** (right Details, Decision; bottom Impact, Change preview, Dependencies) · **What if** (right Decision, Predictions, Forecast; bottom Simulation) · **History** (center Map, Inside view; right Details; bottom History, Code Motion) · **All tools** (everything). Each with an icon, a one-line description and the panels opened first.
-2. A test that every registered panel id appears in at least one dashboard besides All tools.
+2. Commands `workspace.<id>` "Go to the <title> dashboard" with `Ctrl+1` … `Ctrl+6`; `workspaces.explainProject`.
+3. A test that every registered panel id appears in at least one dashboard besides All tools.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/workspaces` → pass.
 
 #### P5-DWORK-002 — "What is this dashboard?" card
