@@ -6025,6 +6025,37 @@ Same rules as the main-process loader: sorted paths, each default called, missin
 4. Tests: typing filters; Enter runs the command.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/core/CommandPalette.test.tsx src/renderer/src/App.test.tsx` → all pass.
 
+#### P1-DSHELL-014 — Workspaces (dashboards) in the registry and store
+**Files:** `desktop/src/renderer/src/core/registry.ts` (edit) · `desktop/src/renderer/src/core/registry.test.ts` (edit) · `desktop/src/renderer/src/core/store.ts` (edit) · `desktop/src/renderer/src/core/store.test.ts` (edit) · `desktop/src/renderer/src/core/workspaces.ts` (create) · `desktop/src/renderer/src/core/workspaces.test.ts` (create)
+**Refs:** R10
+**Why:** one screen with every panel is too much for a newcomer; a dashboard shows only what one job needs (founder request, 2026-09-26).
+**Steps:**
+1. `WorkspaceDef { id; title; icon; description; order; panels?: Partial<Record<PanelArea, string[]>>; start?: Partial<Record<PanelArea, string>> }` — an area missing from `panels` shows all its panels; an empty list hides the area. `addWorkspace` / `workspaces()` on the registry.
+2. Store: `workspace: string` (default `'explore'`, remembered in `localStorage` key `pv.layout.workspace`), `setWorkspace(id)` (also applies `start` to `activePanel`).
+3. `workspaces.ts`: `panelsFor(registry, area, workspace)` (keeps the registry order), `activeWorkspace(registry, id)` (falls back to the first).
+4. Tests.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/core` → pass.
+
+#### P1-DSHELL-015 — Layout follows the dashboard; dashboard rail
+**Files:** `desktop/src/renderer/src/core/Layout.tsx` (edit) · `desktop/src/renderer/src/core/Layout.module.css` (edit) · `desktop/src/renderer/src/core/Layout.test.tsx` (edit) · `desktop/src/renderer/src/core/WorkspaceRail.tsx` (create) · `desktop/src/renderer/src/core/WorkspaceRail.test.tsx` (create)
+**Refs:** R10
+**Why:** show and switch dashboards.
+**Steps:**
+1. Each area shows `panelsFor(...)`; a side area with no panels collapses (its grid column becomes 0), the bottom row disappears when empty.
+2. `WorkspaceRail`: a column on the far left with one button per dashboard (icon + short title, the description as tooltip and `aria-describedby`), the active one highlighted, `role="tablist"` with arrow-key navigation; below 900 px window width only icons.
+3. Commands `workspace.<id>` "Go to the <title> dashboard" with shortcuts `Ctrl+1` … `Ctrl+6` (registered by the Layout from `workspaces()`).
+4. Tests: filtering, collapsing, switching by click and keyboard.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/core` → pass.
+
+#### P1-DSHELL-016 — Icon set
+**Files:** `desktop/src/renderer/src/ui/Icon.tsx` (create) · `desktop/src/renderer/src/ui/Icon.test.tsx` (create)
+**Refs:** R10
+**Why:** dashboards and help need clear pictures next to words.
+**Steps:**
+1. `Icon({ name, size = 18, title? })`: inline SVG line icons (`map`, `pulse`, `shield`, `flask`, `clock`, `grid`, `help`, `sparkle`, `play`, `search`, `close`, `arrow-right`), `currentColor`, `aria-hidden` unless `title`.
+2. Test: every name renders an `svg`.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/ui/Icon.test.tsx` → pass.
+
 ---
 
 ### MODULE P1-DAPI — Renderer API layer
@@ -6603,6 +6634,15 @@ export interface RendererEntry { mode: '2d' | '3d'; create: () => GraphRenderer 
 2. `register(app)`: `addPanel({ id: 'inspector', title: 'Details', area: 'right', order: 10, component: InspectorPanel })`; `addNodeAction({ id: 'open-in-editor', title: 'Open in editor', order: 90, when: (n) => n.file_path !== '', run: (n) => openInEditor(root + '/' + n.file_path, n.span.start_line || 1) })` where `root` is read from the app store at run time.
 3. Test: registrations exist; the action is hidden for a node with empty `file_path`.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/inspector/register.test.tsx` → pass.
+
+#### P1-DINSP-007 — Details in plain words
+**Files:** `desktop/src/renderer/src/features/inspector/NodeDetails.tsx` (edit) · `desktop/src/renderer/src/features/inspector/NodeDetails.test.tsx` (edit)
+**Refs:** R10
+**Why:** the Details panel shows raw kinds and metric names.
+**Steps:**
+1. With simple words on: the kind as `plainKind` with the one-line `whatIs` sentence under the name; metric labels from `plainMetric` ("Used by", "Uses", "Lines", "Complexity") with a tooltip explaining each.
+2. Test.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/inspector` → pass.
 
 ---
 
@@ -7200,6 +7240,15 @@ Json build_call_tree(const graph::Graph& g, const std::string& node_id, int dept
 2. Test: registrations.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/search/register.test.tsx` → pass.
 
+#### P1-DSRCH-004 — Search filters in plain words
+**Files:** `desktop/src/renderer/src/features/search/SearchPanel.tsx` (edit) · `desktop/src/renderer/src/features/search/SearchPanel.test.tsx` (edit)
+**Refs:** R10
+**Why:** the filter chips say "package / module / method".
+**Steps:**
+1. With simple words on the chips read "Folders · Files · Classes · Functions · Functions in classes" (same filter values).
+2. Test.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/search` → pass.
+
 ---
 
 ### MODULE P1-DINSI — Insights panel
@@ -7357,6 +7406,15 @@ Json build_call_tree(const graph::Graph& g, const std::string& node_id, int dept
 1. `addNodeAction({ id: 'focus', title: 'Focus on this', order: 30, run: (n) => focusOn(n.id) })`; `addCommand({ id: 'explore.clearFocus', title: 'Clear focus', shortcut: 'Shift+Escape', run: clearFocus })`; `addStatusItem({ id: 'level', order: 10, component: LevelIndicator })`; `addGlobal({ id: 'view-state-keeper', component: ViewStateKeeper })` (effect calls `startViewStateKeeper()`).
 2. Test: registrations.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/explore/register.test.tsx` → pass.
+
+#### P1-DEXPLORE-006 — Level indicator in plain words
+**Files:** `desktop/src/renderer/src/features/explore/LevelIndicator.tsx` (edit) · `desktop/src/renderer/src/features/explore/LevelIndicator.test.tsx` (edit)
+**Refs:** R10
+**Why:** "Level 2 · Modules of pv_ai" means little to a newcomer.
+**Steps:**
+1. With simple words on (`usePlainWords()` from P5-DPLAIN): "Files in pv_ai", "Folders in shop", "Functions in cart.py" (`plainKindPlural`); off: the current text.
+2. Test both.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/explore/LevelIndicator.test.tsx` → pass.
 
 ---
 
@@ -13302,6 +13360,15 @@ CREATE INDEX IF NOT EXISTS ai_requests_user_day_idx ON ai_requests(user_id, crea
 4. Tests (jsdom has no WebGL: mock `@react-three/fiber`'s `Canvas` to render children into a div): mount/destroy; a simulated instance click emits `nodeClick`.
 **Verify:** `cd desktop && pnpm vitest run src/renderer/src/renderers/r3f` → pass.
 
+#### P4-DR3F-003 — 3D legend in plain words
+**Files:** `desktop/src/renderer/src/renderers/r3f/GraphScene.tsx` (edit) · `desktop/src/renderer/src/renderers/r3f/r3f.test.tsx` (edit)
+**Refs:** R10
+**Why:** "imports / calls / inherits / references" are developer words.
+**Steps:**
+1. With simple words on the legend reads "uses (import) · calls · builds on (inherits) · mentions".
+2. Test.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/renderers/r3f` → pass.
+
 ---
 
 ### MODULE P4-UDOC — User guide for Phase 4
@@ -13383,9 +13450,11 @@ CREATE INDEX IF NOT EXISTS ai_requests_user_day_idx ON ai_requests(user_id, crea
 | 3 | P5-MLFAIL · P5-MLBOT · P5-MLFC · P5-MLREC · P5-MLANOM · P5-DTIME · P5-DREC |
 | 4 | P5-SMLGW · P5-DSIM |
 | 5 | P5-DML |
-| 6 | P5-DPRED · P5-DFC |
-| 7 | P5-UDOC |
-| 8 | P5-SIGN |
+| 6 | P5-DPRED · P5-DFC · P5-DPLAIN |
+| 7 | P5-DWORK |
+| 8 | P5-DGUIDE |
+| 9 | P5-UDOC |
+| 10 | P5-SIGN |
 
 ---
 
@@ -14102,11 +14171,106 @@ CREATE TABLE IF NOT EXISTS ml_jobs (
 
 ---
 
+### MODULE P5-DPLAIN — Plain language
+- **Type:** CODE
+- **Lane:** DESKTOP
+- **Owns:** `desktop/src/renderer/src/features/plain/**`
+- **Starts after:** P1-DSHELL
+- **Goal:** everyday words for code terms, on by default, so non-developers can follow the map (founder request 2026-09-26).
+
+#### P5-DPLAIN-001 — Terms and the simple-words setting
+**Files:** `desktop/src/renderer/src/features/plain/terms.ts` (create) · `desktop/src/renderer/src/features/plain/terms.test.ts` (create) · `desktop/src/renderer/src/features/plain/plain-store.ts` (create) · `desktop/src/renderer/src/features/plain/plain-store.test.ts` (create)
+**Refs:** R10
+**Why:** one dictionary every feature uses.
+**Steps:**
+1. `plainKind(kind)` (package → Folder, module → File, class → Class, function → Function, method → Function in a class, external → Outside library, …), `plainKindPlural`, `whatIs(kind)` (one sentence: "A file of code. It groups related functions and classes."), `plainMetric(name)` + `explainMetric(name)` (loc, complexity, fan_in → Used by, fan_out → Uses), `plainEdge(kind)`.
+2. `usePlainWords()` store: setting `ui.simpleWords` (default true) loaded/saved through `pv:settings.*`.
+3. Tests.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/plain` → pass.
+
+#### P5-DPLAIN-002 — Settings section and glossary
+**Files:** `desktop/src/renderer/src/features/plain/PlainSettings.tsx` (create) · `desktop/src/renderer/src/features/plain/register.tsx` (create) · `desktop/src/renderer/src/features/plain/register.test.tsx` (create)
+**Refs:** R10
+**Why:** let developers switch to exact terms; let everyone look words up.
+**Steps:**
+1. Settings section "Words" (order 15): toggle "Use simple words" and a glossary table (word · simple word · what it means).
+2. Test.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/plain` → pass.
+
+---
+
+### MODULE P5-DWORK — Dashboards
+- **Type:** CODE
+- **Lane:** DESKTOP
+- **Owns:** `desktop/src/renderer/src/features/workspaces/**`
+- **Starts after:** P1-DSHELL · P5-DSIM · P5-DPRED · P5-DFC · P5-DPLAIN
+- **Goal:** separate dashboards for exploring, watching the program run, changing safely, what-if and history, each explained in plain words; every feature stays reachable ("All tools").
+
+#### P5-DWORK-001 — Dashboard definitions
+**Files:** `desktop/src/renderer/src/features/workspaces/definitions.ts` (create) · `desktop/src/renderer/src/features/workspaces/definitions.test.ts` (create) · `desktop/src/renderer/src/features/workspaces/register.tsx` (create) · `desktop/src/renderer/src/features/workspaces/register.test.tsx` (create)
+**Refs:** R10
+**Why:** decide what each job needs.
+**Steps:**
+1. Six dashboards: **Explore** (map; left Search, Insights, Pinned; right Details, Explanation; no bottom) · **Watch it run** (right Health, Details; bottom Runtime, Errors, Fixes) · **Change safely** (right Details, Decision; bottom Impact, Change preview, Dependencies) · **What if** (right Decision, Predictions, Forecast; bottom Simulation) · **History** (center Map, Inside view; right Details; bottom History, Code Motion) · **All tools** (everything). Each with an icon, a one-line description and the panels opened first.
+2. A test that every registered panel id appears in at least one dashboard besides All tools.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/workspaces` → pass.
+
+#### P5-DWORK-002 — "What is this dashboard?" card
+**Files:** `desktop/src/renderer/src/features/workspaces/IntroCard.tsx` (create) · `desktop/src/renderer/src/features/workspaces/intro-store.ts` (create) · `desktop/src/renderer/src/features/workspaces/IntroCard.test.tsx` (create)
+**Refs:** R10
+**Why:** say in two sentences what the screen is for and what to try first.
+**Steps:**
+1. A card over the top of the map (global): title, two plain sentences, up to three "Try this" buttons (Explore: "Explain this project", "Find something"; Watch it run: "How to connect my program", "Show errors"; Change safely: "Check a change"; What if: "Open a sandbox", "Predict problems"; History: "Show project history"), "Got it" hides it for that dashboard (remembered), a small "?" brings it back.
+2. Buttons call existing commands and stores (explain, search focus, `sim.start`, `prediction.run`, `timetravel`, help topics).
+3. Tests.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/workspaces` → pass.
+
+---
+
+### MODULE P5-DGUIDE — Guided tour and help
+- **Type:** CODE
+- **Lane:** DESKTOP
+- **Owns:** `desktop/src/renderer/src/features/guide/**` · `desktop/src/main/handlers/sample.ts` · `desktop/src/main/handlers/sample.test.ts` · `desktop/src/main/sample/**`
+- **Starts after:** P5-DWORK · P5-DPLAIN
+- **Goal:** a first-run tour, task-based help ("How do I…") and a sample project, so anyone can start without reading docs (USE-01).
+
+#### P5-DGUIDE-001 — Help: "How do I…"
+**Files:** `desktop/src/renderer/src/features/guide/topics.ts` (create) · `desktop/src/renderer/src/features/guide/HelpDialog.tsx` (create) · `desktop/src/renderer/src/features/guide/HelpButton.tsx` (create) · `desktop/src/renderer/src/features/guide/help.test.tsx` (create)
+**Refs:** R10
+**Why:** people think in tasks, not in panel names.
+**Steps:**
+1. Topics: understand what the project does · find a part by name · see what breaks if I change something · watch my program run · find where an error happens · try a change without risk · see how the project changed · ask the AI to explain · what the colours mean. Each: three short steps and a "Show me" button (switches dashboard and starts a one-step tour at the right place).
+2. "?" toolbar button (right, order 95) and `F1` / command "Help" open the dialog; a search box filters topics.
+3. Tests.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/guide` → pass.
+
+#### P5-DGUIDE-002 — Guided tour
+**Files:** `desktop/src/renderer/src/features/guide/Tour.tsx` (create) · `desktop/src/renderer/src/features/guide/tour-store.ts` (create) · `desktop/src/renderer/src/features/guide/tour.test.tsx` (create) · `desktop/src/renderer/src/features/guide/register.tsx` (create) · `desktop/src/renderer/src/features/guide/register.test.tsx` (create)
+**Refs:** R10
+**Why:** a two-minute walk through the screen the first time a project opens.
+**Steps:**
+1. Steps anchored to CSS selectors (dashboard rail, map, Details, Search, help button); a highlight ring and a bubble with Back / Next / Skip; `Esc` closes; the bubble stays inside the window at any size.
+2. Shown once after the first project opens (setting `ui.tourSeen`); "Take the tour" in Help and a welcome action restart it.
+3. Tests.
+**Verify:** `cd desktop && pnpm vitest run src/renderer/src/features/guide` → pass.
+
+#### P5-DGUIDE-003 — Sample project
+**Files:** `desktop/src/main/sample/sample-project.ts` (create) · `desktop/src/main/handlers/sample.ts` (create) · `desktop/src/main/handlers/sample.test.ts` (create) · `desktop/src/renderer/src/features/guide/sample.ts` (create) · `desktop/src/renderer/src/features/guide/sample.test.ts` (create)
+**Refs:** R10
+**Why:** try everything without having a project at hand.
+**Steps:**
+1. `pv:sample.create` writes a small Python shop (packages `shop`, `payments`, a few classes and functions with calls between them, a README and a `run_demo.py`) into `<userData>/sample-project` (recreated each time) and returns its path.
+2. Welcome action "Try a sample project" opens it and starts the tour.
+3. Tests.
+**Verify:** `cd desktop && pnpm vitest run src/main/handlers/sample.test.ts src/renderer/src/features/guide` → pass.
+
+---
+
 ### MODULE P5-UDOC — User guide for Phase 5
 - **Type:** DOCS
 - **Lane:** DOCS
 - **Owns:** `docs/user-guide/phase5/**`
-- **Starts after:** P5-DTIME · P5-DSIM · P5-DPRED · P5-DFC
+- **Starts after:** P5-DTIME · P5-DSIM · P5-DPRED · P5-DFC · P5-DGUIDE
 - **Goal:** document time travel, simulation, predictions, forecasts and recommendations.
 
 #### P5-UDOC-001 — Time travel and simulation
@@ -14124,6 +14288,14 @@ CREATE TABLE IF NOT EXISTS ml_jobs (
 **Steps:**
 1. `## Failure predictions`, `## Bottlenecks`, `## Health forecast`, `## The recommendation (go, caution, no-go)`, `## Confidence and data`, `## What is sent to the cloud`.
 **Verify:** `grep -c "^## " docs/user-guide/phase5/predictions-and-decisions.md` → `6`.
+
+#### P5-UDOC-003 — Dashboards, simple words and help
+**Files:** `docs/user-guide/phase5/dashboards-and-help.md` (create) · `docs/user-guide/phase5/README.md` (edit)
+**Refs:** R1
+**Why:** document the simpler app.
+**Steps:**
+1. `## The dashboards`, `## Simple words`, `## Getting help`, `## The sample project`; README links the page.
+**Verify:** `grep -c "^## " docs/user-guide/phase5/dashboards-and-help.md` → `4`.
 
 ---
 
@@ -15106,6 +15278,11 @@ The new architecture (diagram + scaling summary) is in `docs/architecture/incomi
 - **New tasks at the end of built modules:** P0-ARCH-008…010, P1-RPC-009, P1-EAPP-004, P1-BUILDR-012, P1-DENG-008, P1-DVIEW-008, P2-DBRIDGE-007, P2-VSC-006, P4-CRPC-005…006, P4-INCR-005.
 - **Amended (not built yet):** P2-INFRA, P2-SSYNC, P2-DCLOUD, P3-SRT, P3-DCIMP, P3-UDOC, P3-SIGN, P4-AIDEPS, P4-AIBASE, P4-AIEXP, P4-AIQA, P4-AIEMB, P4-SAIGW, P4-DAIM, P4-DQA, P4-UDOC, P4-SIGN, P5-METRIC (SQLite moved to P4-ECACHE), P5-SMLGW, P5-DML, P5-DFC, P6-ONPREM.
 
+
+### H6. Simpler app for everyone (2026-09-26)
+
+Founder request: anyone, including non-developers, should be able to use the app and understand how the code works, with separate dashboards (for example the map and the simulation) and every feature kept. Added: P1-DSHELL-014…016 (dashboards in the shell, dashboard rail, icons), P1-DEXPLORE-006, P1-DINSP-007, P1-DSRCH-004, P4-DR3F-003 (plain words in built features), new modules P5-DPLAIN, P5-DWORK, P5-DGUIDE, and P5-UDOC-003.
+
 ---
 
 ## PART I — HOW TO EXTEND OR CHANGE THIS FILE
@@ -15129,13 +15306,13 @@ The new architecture (diagram + scaling summary) is in `docs/architecture/incomi
 | Phase | Modules | Tasks |
 |---|---|---|
 | 0 | 17 | 121 |
-| 1 | 48 | 296 |
+| 1 | 48 | 302 |
 | 2 | 30 | 160 |
 | 3 | 26 | 107 |
-| 4 | 32 | 102 |
-| 5 | 21 | 55 |
+| 4 | 32 | 103 |
+| 5 | 24 | 63 |
 | 6 | 23 | 69 |
-| **All** | **197** | **910** |
+| **All** | **200** | **925** |
 
 ### J2. All modules
 
@@ -15178,14 +15355,14 @@ The new architecture (diagram + scaling summary) is in `docs/architecture/incomi
 | P1-DENG | Engine process client (main process) | DESKTOP | CODE | 8 | P1-DDEPS |
 | P1-DPRE | Preload bridge and shared bridge types | DESKTOP | CODE | 3 | P1-DDEPS |
 | P1-DMAIN | Main process core and basic IPC handlers | DESKTOP | CODE | 11 | P1-DENG · P1-DPRE |
-| P1-DSHELL | Renderer shell (layout, registry, store, UI kit) | DESKTOP | CODE | 13 | P1-DPRE |
+| P1-DSHELL | Renderer shell (layout, registry, store, UI kit) | DESKTOP | CODE | 16 | P1-DPRE |
 | P1-DAPI | Renderer API layer | DESKTOP | CODE | 5 | P1-DSHELL |
 | P1-DAI | AI service in the main process (direct mode) | DESKTOP | CODE | 9 | P1-DMAIN · P1-PROMPT |
 | P1-DVIEW | Render-agnostic view core and canvas | DESKTOP | CODE | 8 | P1-DAPI |
 | P1-D2D | 2D renderer (Cytoscape) | DESKTOP | CODE | 4 | P1-DVIEW |
 | P1-DIMPORT | Welcome screen and project opening | DESKTOP | CODE | 7 | P1-DAPI |
 | P1-DNAV | Navigation (breadcrumb and history) | DESKTOP | CODE | 5 | P1-DVIEW |
-| P1-DINSP | Inspector panel | DESKTOP | CODE | 6 | P1-DVIEW |
+| P1-DINSP | Inspector panel | DESKTOP | CODE | 7 | P1-DVIEW |
 | P1-DIMPACT | "What breaks if I change this?" UI | DESKTOP | CODE | 4 | P1-DVIEW |
 | P1-DEXPL | "Explain this" UI | DESKTOP | CODE | 4 | P1-DVIEW · P1-DAI |
 | P1-DSET | Settings UI | DESKTOP | CODE | 4 | P1-DSHELL · P1-DAI |
@@ -15197,10 +15374,10 @@ The new architecture (diagram + scaling summary) is in `docs/architecture/incomi
 | P1-PYNB | Jupyter notebook support | ENGINE | CODE | 4 | P1-MVP |
 | P1-DGIT | Import from Git | DESKTOP | CODE | 4 | P1-MVP |
 | P1-DINPUT | Code snippet and context input | DESKTOP | CODE | 5 | P1-MVP |
-| P1-DSRCH | Search panel | DESKTOP | CODE | 3 | P1-MVP |
+| P1-DSRCH | Search panel | DESKTOP | CODE | 4 | P1-MVP |
 | P1-DINSI | Insights panel | DESKTOP | CODE | 5 | P1-MVP |
 | P1-D3D | 3D renderer and view mode | DESKTOP | CODE | 4 | P1-MVP |
-| P1-DEXPLORE | Multi-level exploration extras | DESKTOP | CODE | 5 | P1-MVP |
+| P1-DEXPLORE | Multi-level exploration extras | DESKTOP | CODE | 6 | P1-MVP |
 | P1-DE2E | End-to-end and contract tests | DESKTOP | CODE | 5 | P1-SRCH · P1-ANLYS · P1-DSRCH · P1-DINSI · P1-D3D · P1-DEXPLORE · P1-DGIT · P1-DINPUT |
 | P1-REL | Packaging and release | INFRA | CODE | 6 | P1-MVP |
 | P1-UDOC | User guide | DOCS | DOCS | 6 | P1-DSRCH · P1-DINSI · P1-D3D · P1-DEXPLORE · P1-DGIT · P1-DINPUT |
@@ -15291,7 +15468,7 @@ The new architecture (diagram + scaling summary) is in `docs/architecture/incomi
 | P4-DCHANGE | Change preview UI | DESKTOP | CODE | 3 | P4-DAIM · P4-CHANGE |
 | P4-DMCP | MCP setup screen | DESKTOP | CODE | 1 | P4-MCP |
 | P4-DRF2D | 2D view with React Flow and D3 | DESKTOP | CODE | 3 | P4-DDEPS · P4-ELAYOUT |
-| P4-DR3F | 3D view with React Three Fiber | DESKTOP | CODE | 2 | P4-DDEPS · P4-ELAYOUT |
+| P4-DR3F | 3D view with React Three Fiber | DESKTOP | CODE | 3 | P4-DDEPS · P4-ELAYOUT |
 | P4-UDOC | User guide for Phase 4 | DOCS | DOCS | 4 | P4-DERRAI · P4-DQA · P4-DCHANGE · P4-DFIX · P4-DMCP · P4-LPACK · P4-DRF2D · P4-DR3F · P4-EIPC · P4-ECACHE |
 | P4-SIGN | Phase 4 review and sign-off | DOCS | DOCS | 2 | P4-UDOC · P4-AIEVAL · P4-MCP · P4-EWATCH · P4-ELAYOUT |
 | P5-CRPC | Phase 5 contracts | CONTRACTS | CODE | 3 | P4-SIGN |
@@ -15313,7 +15490,10 @@ The new architecture (diagram + scaling summary) is in `docs/architecture/incomi
 | P5-DML | ML access (main process) | DESKTOP | CODE | 3 | P5-SMLGW · P5-METRIC |
 | P5-DPRED | Prediction UI | DESKTOP | CODE | 3 | P5-DML · P5-DREC |
 | P5-DFC | Health forecast UI | DESKTOP | CODE | 4 | P5-DML · P5-DREC |
-| P5-UDOC | User guide for Phase 5 | DOCS | DOCS | 2 | P5-DTIME · P5-DSIM · P5-DPRED · P5-DFC |
+| P5-DPLAIN | Plain language | DESKTOP | CODE | 2 | P1-DSHELL |
+| P5-DWORK | Dashboards | DESKTOP | CODE | 2 | P1-DSHELL · P5-DSIM · P5-DPRED · P5-DFC · P5-DPLAIN |
+| P5-DGUIDE | Guided tour and help | DESKTOP | CODE | 3 | P5-DWORK · P5-DPLAIN |
+| P5-UDOC | User guide for Phase 5 | DOCS | DOCS | 3 | P5-DTIME · P5-DSIM · P5-DPRED · P5-DFC · P5-DGUIDE |
 | P5-SIGN | Phase 5 review and sign-off | DOCS | DOCS | 2 | P5-UDOC · P5-SMLGW |
 | P6-BIZ | Business model and monetization | BUSINESS | DOCS | 5 | P5-SIGN |
 | P6-LEGAL | Company formation and legal foundation | BUSINESS | DOCS | 5 | P5-SIGN |
