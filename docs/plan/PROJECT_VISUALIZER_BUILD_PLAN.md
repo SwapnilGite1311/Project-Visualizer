@@ -9353,7 +9353,7 @@ CMD ["node", "dist/index.js"]
    - `## Compose file` — `infra/compose/compose.<svc>.yml`: service `<svc>` with `build: { context: ../../server, dockerfile: services/<svc>/Dockerfile }`, `env_file: [../../server/services/<svc>/.env.docker]`, `ports: ["<port>:<port>"]`, `depends_on` with `condition: service_healthy` for used stores.
    - `## Prometheus target` — `infra/observability/prometheus/targets/<svc>.json`: `[{"targets":["<svc>:<port>"],"labels":{"service":"<svc>"}}]`.
    - `## Env files` — `.env.example` committed (fake values); developers copy it to `.env` (localhost URLs) and `.env.docker` (docker service names such as `postgres`, `redis`, `mongo`).
-**Verify:** `grep -c "^## " server/docs/service-template.md` → `7`.
+**Verify:** `grep -c "^## " server/docs/service-template.md` → `8`.
 
 #### P2-SBASE-002 — @pv/common: errors
 **Files:** `server/libs/common/package.json` (create) · `server/libs/common/pnpm-lock.yaml` (create) · `server/libs/common/tsconfig.json` (create) · `server/libs/common/src/errors.ts` (create) · `server/libs/common/src/errors.test.ts` (create)
