@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getNode } from '../../api/engine';
 import { useAppStore } from '../../core/store';
+import { usePlainWordsStore } from '../plain/plain-store';
 import { gnode } from '../../view/test-data';
 import { LevelIndicator } from './LevelIndicator';
 
@@ -13,7 +14,15 @@ beforeEach(() => {
 });
 
 describe('LevelIndicator', () => {
-  it('names the current level', async () => {
+  it('names the current level in simple words', async () => {
+    usePlainWordsStore.setState({ simple: true });
+    useAppStore.setState({ screen: 'workspace', projectId: 'p1', currentParentId: 'package:app' });
+    render(<LevelIndicator />);
+    expect(await screen.findByText('Files in app')).toBeInTheDocument();
+  });
+
+  it('names the current level exactly when simple words are off', async () => {
+    usePlainWordsStore.setState({ simple: false });
     useAppStore.setState({ screen: 'workspace', projectId: 'p1', currentParentId: 'package:app' });
     render(<LevelIndicator />);
     expect(await screen.findByText('Level 2 · Modules of app')).toBeInTheDocument();

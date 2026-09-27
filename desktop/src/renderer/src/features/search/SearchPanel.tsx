@@ -3,6 +3,8 @@ import type { NodeKind } from '../../api/types';
 import { Badge } from '../../ui/Badge';
 import { EmptyState } from '../../ui/EmptyState';
 import { revealNode } from '../../view/reveal';
+import { usePlainWords } from '../plain/plain-store';
+import { plainKindPlural } from '../plain/terms';
 import { searchBus } from './search-bus';
 import { useSearchStore } from './search-store';
 
@@ -20,6 +22,7 @@ const chip = (active: boolean) => ({
 
 export function SearchPanel() {
   const { text, kinds, results, suggestions, loading, error, setText, toggleKind } = useSearchStore();
+  const simple = usePlainWords();
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
 
@@ -66,7 +69,7 @@ export function SearchPanel() {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
         {KINDS.map((k) => (
           <button key={k} type="button" aria-pressed={kinds.includes(k)} style={chip(kinds.includes(k))} onClick={() => toggleKind(k)}>
-            {k}
+            {simple ? plainKindPlural(k) : k}
           </button>
         ))}
       </div>

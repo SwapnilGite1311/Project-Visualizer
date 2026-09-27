@@ -1,3 +1,4 @@
+import { plainEdge } from '../../features/plain/terms';
 import type { ViewGraph } from '../../view/model';
 
 // Pure scene data for the 3D view: flat typed arrays for instanced drawing plus a little metadata per node/edge.
@@ -208,4 +209,10 @@ export function screenShare(radius: number, distance: number, fovDeg: number, as
   const vFov = (fovDeg * Math.PI) / 180;
   const verticalShare = radius / (distance * Math.tan(vFov / 2)); // diameter / view height
   return aspect >= 1 ? verticalShare : verticalShare / Math.max(0.1, aspect);
+}
+
+// Legend text for a link kind: "builds on (inherits)" with simple words, the developer word otherwise.
+export function legendLabel(kind: string, simple: boolean): string {
+  const plain = plainEdge(kind);
+  return simple && plain !== kind ? `${plain} (${kind})` : kind;
 }

@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SearchHit } from '../../api/types';
 import { revealNode } from '../../view/reveal';
+import { usePlainWordsStore } from '../plain/plain-store';
 import { SearchPanel } from './SearchPanel';
 import { searchBus } from './search-bus';
 import { useSearchStore } from './search-store';
@@ -22,6 +23,7 @@ const setText = vi.fn();
 const toggleKind = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
+  usePlainWordsStore.setState({ simple: false });
   useSearchStore.setState({ text: '', kinds: [], results: [], suggestions: [], loading: false, error: null, setText, toggleKind });
 });
 
@@ -42,6 +44,14 @@ describe('SearchPanel', () => {
     expect(setText).toHaveBeenCalledWith('user_service');
     fireEvent.click(screen.getByText('class'));
     expect(toggleKind).toHaveBeenCalledWith('class');
+  });
+
+  it('names the filters in simple words', () => {
+    usePlainWordsStore.setState({ simple: true });
+    render(<SearchPanel />);
+    for (const label of ['Folders', 'Files', 'Classes', 'Functions', 'Functions in classes']) expect(screen.getByText(label)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Files'));
+    expect(toggleKind).toHaveBeenCalledWith('module');
   });
 
   it('lists results and reveals with the keyboard or a click', () => {

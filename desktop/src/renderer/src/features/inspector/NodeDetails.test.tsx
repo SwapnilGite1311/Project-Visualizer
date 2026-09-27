@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { usePlainWordsStore } from '../plain/plain-store';
 import { gnode } from '../../view/test-data';
 import { NodeDetails } from './NodeDetails';
 
 describe('NodeDetails', () => {
+  beforeEach(() => usePlainWordsStore.setState({ simple: false }));
+
   it('shows all fields of a function', () => {
     const node = {
       ...gnode('function:app/utils.py#is_valid', 'function'),
@@ -19,6 +22,16 @@ describe('NodeDetails', () => {
     expect(screen.getByText('app.utils.is_valid')).toBeInTheDocument();
     expect(screen.getByTestId('node-location')).toHaveTextContent('app/utils.py:8–9');
     expect(screen.getByText('Used by (fan-in)').nextSibling).toHaveTextContent('3');
+  });
+
+  it('uses simple words and says what the element is', () => {
+    usePlainWordsStore.setState({ simple: true });
+    const node = { ...gnode('module:app/utils.py', 'module'), metrics: { loc: 20, complexity: 4, fan_in: 5, fan_out: 1 } };
+    render(<NodeDetails node={node} />);
+    expect(screen.getByText('File')).toBeInTheDocument();
+    expect(screen.getByTestId('node-what-is')).toHaveTextContent('One file of code');
+    expect(screen.getByText('Used by').nextSibling).toHaveTextContent('5');
+    expect(screen.getByText('Used by').closest('tr')?.getAttribute('title')).toMatch(/other parts use this one/);
   });
 
   it('hides the location for a package', () => {

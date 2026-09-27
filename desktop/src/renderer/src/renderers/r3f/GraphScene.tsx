@@ -2,8 +2,10 @@ import { OrbitControls } from '@react-three/drei';
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber';
 import { type MutableRefObject, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { usePlainWords } from '../../features/plain/plain-store';
+import { explainEdge } from '../../features/plain/terms';
 import type { ZoomHint } from '../../view/semantic-zoom';
-import { BACKGROUND, frameDistance, labelIndices, neighbourhood, parseColor, type SceneData } from './scene-data';
+import { BACKGROUND, frameDistance, labelIndices, legendLabel, neighbourhood, parseColor, type SceneData } from './scene-data';
 
 export type NodeEventName = 'nodeClick' | 'nodeDoubleClick' | 'nodeContext' | 'nodeHover';
 type At = { clientX: number; clientY: number };
@@ -384,6 +386,7 @@ export function GraphScene({ state, bridge, onNode, onBackground, onFitted }: Gr
   const focus = useFocus(scene, state.hovered, state.selected);
   const selected = scene && state.selected ? scene.ids.indexOf(state.selected) : -1;
   const labelRefs = useRef(new Map<number, HTMLDivElement>());
+  const simple = usePlainWords();
   const labels = useMemo(() => (scene ? labelIndices(scene, new Set([...(focus?.nodes ?? []), ...(selected >= 0 ? [selected] : [])])) : []), [scene, focus, selected]);
 
   return (
@@ -454,9 +457,9 @@ export function GraphScene({ state, bridge, onNode, onBackground, onFitted }: Gr
         style={{ position: 'absolute', left: 10, bottom: 8, display: 'flex', flexWrap: 'wrap', gap: '4px 12px', font: '11px system-ui, sans-serif', color: '#94a3b8', pointerEvents: 'none', maxWidth: 'calc(100% - 20px)' }}
       >
         {EDGE_LEGEND.map(([name, c]) => (
-          <span key={name} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <span key={name} title={explainEdge(name)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <span style={{ width: 16, height: 3, borderRadius: 2, background: c, display: 'inline-block' }} />
-            {name}
+            {legendLabel(name, simple)}
           </span>
         ))}
         <span>drag to turn · right-drag to move · scroll into an element to open it</span>

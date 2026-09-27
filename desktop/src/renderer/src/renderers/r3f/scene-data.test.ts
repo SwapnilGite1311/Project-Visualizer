@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ViewEdge, ViewGraph, ViewNode } from '../../view/model';
-import { fitDistance, frameDistance, labelIndices, MAX_LABELS, neighbourhood, parseColor, screenShare, spreadFor, toScene } from './scene-data';
+import { fitDistance, frameDistance, labelIndices, legendLabel, MAX_LABELS, neighbourhood, parseColor, screenShare, spreadFor, toScene } from './scene-data';
 
 const node = (id: string, extra: Partial<ViewNode> = {}): ViewNode =>
   ({
@@ -131,5 +131,13 @@ describe('3D framing', () => {
       expect(maxY).toBeLessThan(1);
       expect(Math.max(maxX, maxY)).toBeGreaterThan(0.55); // tight: the level fills the view
     }
+  });
+});
+
+describe('3D legend', () => {
+  it('uses simple words with the developer word in brackets', () => {
+    expect(legendLabel('inherits', true)).toBe('builds on (inherits)');
+    expect(legendLabel('calls', true)).toBe('calls');
+    expect(legendLabel('imports', false)).toBe('imports');
   });
 });
