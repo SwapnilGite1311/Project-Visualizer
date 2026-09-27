@@ -32,10 +32,12 @@ struct LayeredOptions {
     std::string rankdir = "TB";  // TB = top to bottom, LR = left to right
     double nodesep = 40;         // gap between neighbours in one rank
     double ranksep = 80;         // gap between ranks
+    int max_row = 0;             // most nodes in one row; a wider rank wraps onto several rows (0 = automatic)
 };
 
 // Dagre-style layered (Sugiyama) layout: cycle breaking, longest-path ranks, dummy nodes on long edges,
-// barycenter ordering, neighbour-aligned coordinates. Nodes without any edge go to a grid below. Deterministic.
+// barycenter ordering, neighbour-aligned coordinates, very wide ranks wrapped onto rows. Nodes without any edge go
+// to a grid below. Deterministic.
 LayoutResult layered(const std::vector<LNode>& nodes, const std::vector<LEdge>& edges, const LayeredOptions& options = {});
 
 // 3D force-directed layout (Fruchterman-Reingold; Barnes-Hut above 500 nodes). Deterministic (seeded by the ids).

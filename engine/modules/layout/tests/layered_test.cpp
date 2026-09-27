@@ -3,6 +3,9 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <map>
+#include <set>
+#include <string>
 
 #include "pv/layout/layout.hpp"
 
@@ -107,4 +110,77 @@ TEST(LayoutLayered, TwoThousandNodes) {
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
     std::printf("[layout] layered 2000 nodes: %lld ms\n", static_cast<long long>(ms));
     EXPECT_EQ(r.positions.size(), 2000u);
+}
+
+namespace {
+
+std::pair<std::vector<LNode>, std::vector<LEdge>> hub_with_leaves(int leaves) {
+    std::vector<LNode> nodes{LNode{"hub", 100, 40}};
+    std::vector<LEdge> edges;
+    for (int i = 0; i < leaves; ++i) {
+        const std::string id = "leaf" + std::to_string(100 + i);
+        nodes.push_back(LNode{id, 100, 40});
+        edges.push_back(edge("hub", id));
+    }
+    return {nodes, edges};
+}
+
+}  // namespace
+
+TEST(LayoutLayered, VeryWideRankWrapsOntoRows) {
+    const auto [nodes, edges] = hub_with_leaves(40);
+    const auto r = layered(nodes, edges);
+    std::map<double, int> per_row;
+    for (const auto& [id, p] : r.positions) {
+        if (id == "hub") continue;
+        EXPECT_GT(p.y, r.positions.at("hub").y) << id;  // every leaf below the hub
+        ++per_row[p.y];
+    }
+    // automatic row size for 41 nodes: max(6, ceil(1.3 * sqrt(41))) = 9
+    EXPECT_GE(per_row.size(), 5u);
+    for (const auto& [y, count] : per_row) EXPECT_LE(count, 9) << "row at y=" << y;
+    expect_no_overlaps(r);
+    // the picture is far less wide than one row of 40 boxes
+    double min_x = 1e9, max_x = -1e9;
+    for (const auto& [id, p] : r.positions) {
+        min_x = std::min(min_x, p.x);
+        max_x = std::max(max_x, p.x);
+    }
+    EXPECT_LT(max_x - min_x, 9 * 140.0);
+    // deterministic
+    const auto again = layered(nodes, edges);
+    for (const auto& [id, p] : r.positions) {
+        EXPECT_DOUBLE_EQ(again.positions.at(id).x, p.x);
+        EXPECT_DOUBLE_EQ(again.positions.at(id).y, p.y);
+    }
+}
+
+TEST(LayoutLayered, RowSizeCanBeRaised) {
+    const auto [nodes, edges] = hub_with_leaves(40);
+    LayeredOptions options;
+    options.max_row = 1000;
+    const auto r = layered(nodes, edges, options);
+    std::set<double> ys;
+    for (const auto& [id, p] : r.positions) {
+        if (id != "hub") ys.insert(p.y);
+    }
+    EXPECT_EQ(ys.size(), 1u);
+}
+
+TEST(LayoutLayered, LongEdgesFollowWrappedRows) {
+    // top -> hub -> 30 leaves, and top -> one leaf directly (a long edge with a bend point in the hub's rank)
+    auto [nodes, edges] = hub_with_leaves(30);
+    nodes.push_back(LNode{"top", 100, 40});
+    edges.push_back(edge("top", "hub"));
+    edges.push_back(edge("top", "leaf129"));
+    const auto r = layered(nodes, edges);
+    double min_x = 1e9, max_x = -1e9;
+    for (const auto& [id, p] : r.positions) {
+        min_x = std::min(min_x, p.x);
+        max_x = std::max(max_x, p.x);
+    }
+    for (const auto& p : r.edge_points.at("top>leaf129")) {
+        EXPECT_GE(p.x, min_x - 60);
+        EXPECT_LE(p.x, max_x + 60);  // the edge stays within the picture
+    }
 }

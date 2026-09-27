@@ -216,42 +216,86 @@ LayoutResult layered(const std::vector<LNode>& input_nodes, const std::vector<LE
     for (const auto& layer : layers) {
         for (std::size_t k = 1; k < layer.size(); ++k) x[static_cast<std::size_t>(layer[k])] = x[static_cast<std::size_t>(layer[k - 1])] + sep(layer[k - 1], layer[k]);
     }
-    for (int iter = 0; iter < 8; ++iter) {
-        const bool use_up = iter % 2 == 0;
-        for (const auto& layer : layers) {
-            if (layer.empty()) continue;
-            std::vector<double> desired(layer.size());
-            for (std::size_t k = 0; k < layer.size(); ++k) {
-                const int v = layer[k];
-                const auto& nb = use_up ? up[static_cast<std::size_t>(v)] : down[static_cast<std::size_t>(v)];
-                if (nb.empty()) {
-                    desired[k] = x[static_cast<std::size_t>(v)];
-                } else {
-                    double sum = 0;
-                    for (const int w : nb) sum += x[static_cast<std::size_t>(w)];
-                    desired[k] = sum / static_cast<double>(nb.size());
-                }
+    // Pull every node of a rank toward its neighbours in the next rank up or down, keeping the order and gaps.
+    auto balance = [&](const std::vector<int>& layer, bool use_up) {
+        if (layer.empty()) return;
+        std::vector<double> desired(layer.size());
+        for (std::size_t k = 0; k < layer.size(); ++k) {
+            const int v = layer[k];
+            const auto& nb = use_up ? up[static_cast<std::size_t>(v)] : down[static_cast<std::size_t>(v)];
+            if (nb.empty()) {
+                desired[k] = x[static_cast<std::size_t>(v)];
+            } else {
+                double sum = 0;
+                for (const int w : nb) sum += x[static_cast<std::size_t>(w)];
+                desired[k] = sum / static_cast<double>(nb.size());
             }
-            std::vector<double> placed(layer.size());
-            placed[0] = desired[0];
-            for (std::size_t k = 1; k < layer.size(); ++k) placed[k] = std::max(desired[k], placed[k - 1] + sep(layer[k - 1], layer[k]));
-            // Shift the whole rank so it sits, on average, where its nodes want to be.
-            double shift = 0;
-            for (std::size_t k = 0; k < layer.size(); ++k) shift += desired[k] - placed[k];
-            shift /= static_cast<double>(layer.size());
-            for (std::size_t k = 0; k < layer.size(); ++k) x[static_cast<std::size_t>(layer[k])] = placed[k] + shift;
+        }
+        std::vector<double> placed(layer.size());
+        placed[0] = desired[0];
+        for (std::size_t k = 1; k < layer.size(); ++k) placed[k] = std::max(desired[k], placed[k - 1] + sep(layer[k - 1], layer[k]));
+        // Shift the whole rank so it sits, on average, where its nodes want to be.
+        double shift = 0;
+        for (std::size_t k = 0; k < layer.size(); ++k) shift += desired[k] - placed[k];
+        shift /= static_cast<double>(layer.size());
+        for (std::size_t k = 0; k < layer.size(); ++k) x[static_cast<std::size_t>(layer[k])] = placed[k] + shift;
+    };
+    for (int iter = 0; iter < 8; ++iter) {
+        for (const auto& layer : layers) balance(layer, iter % 2 == 0);
+    }
+
+    // 5b. A very wide rank (e.g. a package that imports dozens of libraries) wraps onto several rows, in its
+    // crossing-minimised order, centred where the rank was; otherwise the whole level would be one long line.
+    std::size_t real_count = 0;
+    for (const VNode& v : vn) real_count += v.real >= 0 ? 1 : 0;
+    const std::size_t max_row = options.max_row > 0
+        ? static_cast<std::size_t>(options.max_row)
+        : std::max<std::size_t>(6, static_cast<std::size_t>(std::ceil(1.3 * std::sqrt(static_cast<double>(real_count)))));
+    std::vector<int> row_of(vn.size(), 0);
+    std::vector<std::size_t> rows_in(layers.size(), 1);
+    for (std::size_t r = 0; r < layers.size(); ++r) {
+        const auto& layer = layers[r];
+        if (layer.size() <= max_row) continue;
+        const std::size_t rows = (layer.size() + max_row - 1) / max_row;
+        const std::size_t per = (layer.size() + rows - 1) / rows;
+        const auto half = [&](int v) { return vn[static_cast<std::size_t>(v)].along / 2; };
+        const double centre = (x[static_cast<std::size_t>(layer.front())] - half(layer.front()) + x[static_cast<std::size_t>(layer.back())] + half(layer.back())) / 2;
+        for (std::size_t j = 0; j * per < layer.size(); ++j) {
+            const std::size_t b = j * per, e = std::min(layer.size(), b + per);
+            std::vector<double> px(e - b, 0);
+            for (std::size_t k = b + 1; k < e; ++k) px[k - b] = px[k - b - 1] + sep(layer[k - 1], layer[k]);
+            const double mid = (px.front() - half(layer[b]) + px.back() + half(layer[e - 1])) / 2;
+            for (std::size_t k = b; k < e; ++k) {
+                x[static_cast<std::size_t>(layer[k])] = px[k - b] - mid + centre;
+                row_of[static_cast<std::size_t>(layer[k])] = static_cast<int>(j);
+            }
+        }
+        rows_in[r] = rows;
+    }
+    // The other ranks (and the bend points of long edges) follow the wrapped rows again.
+    if (std::any_of(rows_in.begin(), rows_in.end(), [](std::size_t n) { return n > 1; })) {
+        for (int iter = 0; iter < 8; ++iter) {
+            for (std::size_t r = 0; r < layers.size(); ++r) {
+                if (rows_in[r] == 1) balance(layers[r], iter % 2 == 0);
+            }
         }
     }
 
-    // 6. Coordinates along the rank axis.
-    std::vector<double> rank_centre(layers.size(), 0);
+    // 6. Coordinates along the rank axis (rows of a wrapped rank sit half a rank gap apart).
+    std::vector<std::vector<double>> row_centre(layers.size());
     double cursor = 0;
     for (std::size_t r = 0; r < layers.size(); ++r) {
         double thick = 0;
         for (const int v : layers[r]) thick = std::max(thick, vn[static_cast<std::size_t>(v)].across);
-        rank_centre[r] = cursor + thick / 2;
-        cursor += thick + options.ranksep;
+        row_centre[r].resize(rows_in[r]);
+        for (std::size_t j = 0; j < rows_in[r]; ++j) {
+            row_centre[r][j] = cursor + thick / 2;
+            cursor += thick + (j + 1 < rows_in[r] ? options.ranksep / 2 : options.ranksep);
+        }
     }
+    const auto across_of = [&](std::size_t i) {
+        return row_centre[static_cast<std::size_t>(vn[i].rank)][static_cast<std::size_t>(row_of[i])];
+    };
 
     // Normalize the layered part to start at 0 on the order axis.
     double min_x = 0, max_x = 0;
@@ -268,7 +312,7 @@ LayoutResult layered(const std::vector<LNode>& input_nodes, const std::vector<LE
     auto emit = [&](double along, double across) { return lr ? Point{across, along, 0} : Point{along, across, 0}; };
     for (std::size_t i = 0; i < vn.size(); ++i) {
         if (vn[i].real < 0) continue;
-        result.positions[nodes[static_cast<std::size_t>(vn[i].real)].id] = emit(x[i], rank_centre[static_cast<std::size_t>(vn[i].rank)]);
+        result.positions[nodes[static_cast<std::size_t>(vn[i].real)].id] = emit(x[i], across_of(i));
     }
 
     // 7. Nodes without edges: a grid after the layered part.
@@ -302,7 +346,7 @@ LayoutResult layered(const std::vector<LNode>& input_nodes, const std::vector<LE
         std::vector<int> chain = it->second;
         if (rev) std::reverse(chain.begin(), chain.end());
         std::vector<Point> pts;
-        for (const int v : chain) pts.push_back(emit(x[static_cast<std::size_t>(v)], rank_centre[static_cast<std::size_t>(vn[static_cast<std::size_t>(v)].rank)]));
+        for (const int v : chain) pts.push_back(emit(x[static_cast<std::size_t>(v)], across_of(static_cast<std::size_t>(v))));
         result.edge_points[input_edges[e.edge].id] = std::move(pts);
     }
     return result;
