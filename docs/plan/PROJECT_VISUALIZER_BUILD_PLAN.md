@@ -12698,6 +12698,16 @@ endif()
 3. README: algorithms, options, performance numbers.
 **Verify:** `cd engine && cmake --build --preset dev && ctest --preset dev -R Layout` → all pass.
 
+#### P4-ELAYOUT-004 — Wrap very wide layers onto several rows
+**Files:** `engine/modules/layout/include/pv/layout/layout.hpp` (edit) · `engine/modules/layout/src/layered.cpp` (edit) · `engine/modules/layout/tests/layered_test.cpp` (edit)
+**Refs:** R3
+**Why:** a level where one element uses 30+ others (for example a package importing many libraries) became one very long row, so every box was drawn tiny.
+**Steps:**
+1. `LayeredOptions::max_row` (0 = automatic: `max(8, ceil(1.8 × √nodes))`). A rank with more nodes than that is split, in its crossing-minimised order, into rows of equal size, centred on the rank's original centre; each row gets its own place on the rank axis (half the rank gap between rows).
+2. Positions and edge polylines use each node's row.
+3. Tests: a hub with 40 leaves has at most `max_row` nodes per row, all leaves below the hub, no overlaps, same result twice; `max_row` = 1000 keeps one row.
+**Verify:** `ctest --preset dev -R LayoutLayered` → pass.
+
 ---
 
 ## Phase 4 — Python AI service and AI gateway [ARCH-DEPENDENT]
@@ -15310,10 +15320,10 @@ Founder request: anyone, including non-developers, should be able to use the app
 | 1 | 48 | 302 |
 | 2 | 30 | 160 |
 | 3 | 26 | 107 |
-| 4 | 32 | 103 |
+| 4 | 32 | 104 |
 | 5 | 24 | 63 |
 | 6 | 23 | 69 |
-| **All** | **200** | **925** |
+| **All** | **200** | **926** |
 
 ### J2. All modules
 
@@ -15452,7 +15462,7 @@ Founder request: anyone, including non-developers, should be able to use the app
 | P4-EWATCH | Native file watcher | ENGINE | CODE | 2 | P3-SIGN |
 | P4-EIPC | Engine local server (named pipe, Unix socket, TCP 7700) | ENGINE | CODE | 4 | P3-SIGN · P1-RPC · P1-EAPP |
 | P4-ECACHE | Local cache (SQLite + LevelDB) | ENGINE | CODE | 4 | P3-SIGN · P1-BUILDR |
-| P4-ELAYOUT | Engine layouts (layered 2D, force 3D) | ENGINE | CODE | 3 | P4-ECACHE · P4-CRPC |
+| P4-ELAYOUT | Engine layouts (layered 2D, force 3D) | ENGINE | CODE | 4 | P4-ECACHE · P4-CRPC |
 | P4-AIDEPS | Python AI service dependencies | AI | DEPS | 1 | P3-SIGN |
 | P4-AIBASE | AI service core | AI | CODE | 6 | P4-AIDEPS · P4-PROMPT |
 | P4-AIEXP | Feature: explain node | AI | CODE | 2 | P4-AIBASE |
