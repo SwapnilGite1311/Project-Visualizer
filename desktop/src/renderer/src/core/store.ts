@@ -16,6 +16,7 @@ export interface AppState {
   graphVersion: number;
   settingsOpen: boolean;
   activePanel: Record<PanelArea, string | null>;
+  workspace: string; // the open dashboard (see workspaces.ts)
   setScreen(screen: string): void;
   setProjectState(state: string): void;
   openedProject(id: string, root: string): void;
@@ -29,6 +30,16 @@ export interface AppState {
   bumpGraphVersion(): void;
   setSettingsOpen(open: boolean): void;
   showPanel(area: PanelArea, id: string): void;
+  setWorkspace(id: string, start?: Partial<Record<PanelArea, string>>): void;
+}
+
+export const WORKSPACE_KEY = 'pv.layout.workspace';
+function loadWorkspace(): string {
+  try {
+    return localStorage.getItem(WORKSPACE_KEY) || 'explore';
+  } catch {
+    return 'explore'; // storage blocked: start on the first dashboard
+  }
 }
 
 const initialData = {
@@ -49,6 +60,7 @@ const initialData = {
 
 export const useAppStore = create<AppState>()((set) => ({
   ...initialData,
+  workspace: loadWorkspace(),
   setScreen: (screen) => set({ screen }),
   setProjectState: (projectState) => set({ projectState }),
   openedProject: (id, root) =>
@@ -63,7 +75,7 @@ export const useAppStore = create<AppState>()((set) => ({
       overlays: {},
       graphVersion: s.graphVersion + 1,
     })),
-  closedProject: () => set((s) => ({ ...initialData, viewMode: s.viewMode })),
+  closedProject: () => set((s) => ({ ...initialData, viewMode: s.viewMode, workspace: s.workspace })),
   setParent: (id) => set({ currentParentId: id, selectedNodeId: null }),
   select: (selectedNodeId) => set({ selectedNodeId }),
   hover: (hoveredNodeId) => set({ hoveredNodeId }),
@@ -79,4 +91,12 @@ export const useAppStore = create<AppState>()((set) => ({
   bumpGraphVersion: () => set((s) => ({ graphVersion: s.graphVersion + 1 })),
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   showPanel: (area, id) => set((s) => ({ activePanel: { ...s.activePanel, [area]: id } })),
+  setWorkspace: (workspace, start = {}) => {
+    try {
+      localStorage.setItem(WORKSPACE_KEY, workspace);
+    } catch {
+      // not remembered; still switches for this session
+    }
+    set((s) => ({ workspace, activePanel: { ...s.activePanel, ...start } }));
+  },
 }));

@@ -2,23 +2,81 @@
   display: grid;
   height: 100%;
   /* Panels follow the window unless the user dragged them (see panel-sizes.ts); the map takes the rest. */
-  grid-template-columns: var(--left-w, clamp(200px, 18vw, 340px)) minmax(0, 1fr) var(
+  grid-template-columns: var(--rail-w, 76px) var(--left-w, clamp(200px, 18vw, 340px)) minmax(0, 1fr) var(
       --right-w,
       clamp(240px, 22vw, 400px)
     );
   grid-template-rows: 40px minmax(0, 1fr) var(--bottom-h, clamp(140px, 25vh, 320px)) 24px;
   grid-template-areas:
-    'toolbar toolbar toolbar'
-    'left center right'
-    'bottom bottom bottom'
-    'status status status';
+    'toolbar toolbar toolbar toolbar'
+    'rail left center right'
+    'rail bottom bottom bottom'
+    'status status status status';
 }
 .noBottom {
   grid-template-rows: 40px minmax(0, 1fr) 24px;
   grid-template-areas:
-    'toolbar toolbar toolbar'
-    'left center right'
-    'status status status';
+    'toolbar toolbar toolbar toolbar'
+    'rail left center right'
+    'status status status status';
+}
+/* Narrow windows: the dashboard rail shows pictures only (names stay as tooltips). */
+@media (max-width: 900px) {
+  .root {
+    --rail-w: 48px;
+  }
+  .railLabel {
+    display: none;
+  }
+}
+
+/* The dashboard rail. */
+.rail {
+  grid-area: rail;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-right: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.railList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 4px;
+}
+.railItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  padding: 8px 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.railItem:hover {
+  background: var(--bg-elevated);
+  color: var(--fg);
+}
+.railItem:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.railItemActive {
+  background: var(--bg-elevated);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.railLabel {
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 .toolbar {
   grid-area: toolbar;

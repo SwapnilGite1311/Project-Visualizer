@@ -30,6 +30,17 @@ export interface WelcomeActionDef {
   run: () => void | Promise<void>;
 }
 export interface GlobalDef { id: string; component: ComponentType }
+// A dashboard: the panels one job needs. An area missing from `panels` shows all of its panels; an empty list hides
+// the area. `start` = the panel shown first in an area when the dashboard opens.
+export interface WorkspaceDef {
+  id: string;
+  title: string;
+  icon: string;
+  description: string;
+  order: number;
+  panels?: Partial<Record<PanelArea, string[]>>;
+  start?: Partial<Record<PanelArea, string>>;
+}
 export interface AppRegistry {
   addPanel(def: PanelDef): void;
   addCommand(def: CommandDef): void;
@@ -40,6 +51,7 @@ export interface AppRegistry {
   addToolbarItem(def: ToolbarItemDef): void;
   addWelcomeAction(def: WelcomeActionDef): void;
   addGlobal(def: GlobalDef): void;
+  addWorkspace(def: WorkspaceDef): void;
 }
 export interface RegistryReader {
   panels(area: PanelArea): PanelDef[];
@@ -51,6 +63,7 @@ export interface RegistryReader {
   toolbarItems(side: 'left' | 'right'): ToolbarItemDef[];
   welcomeActions(): WelcomeActionDef[];
   globals(): GlobalDef[];
+  workspaces(): WorkspaceDef[];
 }
 
 type Item = { id: string; order?: number };
@@ -89,6 +102,7 @@ export function createRegistry(): AppRegistry & RegistryReader {
   const toolbarItems = new Category<ToolbarItemDef>('toolbarItem');
   const welcomeActions = new Category<WelcomeActionDef>('welcomeAction');
   const globals = new Category<GlobalDef>('global');
+  const workspaces = new Category<WorkspaceDef>('workspace');
   return {
     addPanel: (d) => panels.add(d),
     addCommand: (d) => commands.add(d),
@@ -99,6 +113,7 @@ export function createRegistry(): AppRegistry & RegistryReader {
     addToolbarItem: (d) => toolbarItems.add(d),
     addWelcomeAction: (d) => welcomeActions.add(d),
     addGlobal: (d) => globals.add(d),
+    addWorkspace: (d) => workspaces.add(d),
     panels: (area) => panels.list().filter((p) => p.area === area),
     commands: () => commands.list(),
     nodeActions: (node) => nodeActions.list().filter((a) => !a.when || a.when(node)),
@@ -108,6 +123,7 @@ export function createRegistry(): AppRegistry & RegistryReader {
     toolbarItems: (side) => toolbarItems.list().filter((t) => t.side === side),
     welcomeActions: () => welcomeActions.list(),
     globals: () => globals.list(),
+    workspaces: () => workspaces.list(),
   };
 }
 
